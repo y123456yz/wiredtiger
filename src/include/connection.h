@@ -348,7 +348,13 @@ struct __wt_connection_impl {
      */
     WT_SESSION_IMPL *sessions; /* Session reference */
     uint32_t session_size;     /* Session array size */
-    uint32_t session_cnt;      /* Session count */
+    
+    union {
+        struct {
+            uint32_t session_cnt;
+        } shared_vars;
+    } u_shared;
+#define WT_SHARED_VAR(struct, field) (struct)->u_shared.shared_vars.field
 
     size_t session_scratch_max; /* Max scratch memory per session */
 

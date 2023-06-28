@@ -169,7 +169,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -242,7 +242,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -344,7 +344,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -2643,7 +2643,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_txn_shared.pinned_id));
     WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txn_shared.id));
 
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
     WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
 

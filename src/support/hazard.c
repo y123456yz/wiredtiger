@@ -318,7 +318,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * or go, we'll check the slots for all of the sessions that could have been active when we
      * started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;

@@ -126,7 +126,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     for (minutes = 0, pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
@@ -231,7 +231,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
@@ -266,7 +266,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
@@ -306,7 +306,7 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      */
     WT_ASSERT(session, session->generations[which] == 0);
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_ASSERT(session, session->id < WT_SHARED_VAR(S2C(session), session_cnt));
 
     /*
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
@@ -328,7 +328,7 @@ void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_ASSERT(session, session->id < WT_SHARED_VAR(S2C(session), session_cnt));
 
     /* Ensure writes made by this thread are visible. */
     WT_PUBLISH(session->generations[which], 0);

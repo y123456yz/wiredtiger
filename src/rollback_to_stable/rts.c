@@ -36,7 +36,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &conn->api_lock);
 
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));
     for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
 
         /* Skip inactive or internal sessions. */
