@@ -18,7 +18,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session_in_list;
-    uint32_t i, session_cnt;
+    uint32_t i, session_cnt_s;
     bool cursor_active, txn_active;
 
     conn = S2C(session);
@@ -36,8 +36,8 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &conn->api_lock);
 
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
+    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
+    for (i = 0, session_in_list = conn->sessions; i < session_cnt_s; i++, session_in_list++) {
 
         /* Skip inactive or internal sessions. */
         if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))

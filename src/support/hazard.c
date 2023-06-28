@@ -295,7 +295,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     WT_CONNECTION_IMPL *conn;
     WT_HAZARD *hp;
     WT_SESSION_IMPL *s;
-    uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
+    uint32_t i, j, hazard_inuse, max, session_cnt_s, walk_cnt;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -318,8 +318,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * or go, we'll check the slots for all of the sessions that could have been active when we
      * started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
+    for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt_s; ++s, ++i) {
         if (!s->active)
             continue;
 
