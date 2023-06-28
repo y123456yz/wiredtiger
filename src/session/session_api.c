@@ -413,6 +413,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * active session.
      */
     while (conn->sessions[WT_SHARED_VAR(conn, session_cnt) - 1].active == 0)
+        // HERE
+        // Pre-decerementing a macro. We may find other cases.
+        // This looks to be volatile semantics though, perhaps we can downgrade to a simple barrier?
         if (--WT_SHARED_VAR(conn, session_cnt) == 0)
             break;
 
