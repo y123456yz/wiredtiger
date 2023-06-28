@@ -2255,8 +2255,8 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 
     conn = S2C(session);
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32, WT_SHARED_VAR(conn, session_cnt),
-      conn->session_size));
+    WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
+      WT_SHARED_VAR(conn, session_cnt), conn->session_size));
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     internal = 0;
     for (s = conn->sessions, i = 0; i < WT_SHARED_VAR(conn, session_cnt); ++s, ++i) {
