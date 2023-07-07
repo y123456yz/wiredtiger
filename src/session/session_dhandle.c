@@ -526,7 +526,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * possible in this loop, ordered reads encourage this.
          */
         WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-        WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
+        WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.shared_vars.checkpoint_running);
 
         if (!must_resolve)
             /* Copy the checkpoint name first because we may need it to get the first wall time. */

@@ -720,7 +720,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 
     /* Track whether pages are being evicted and progress is made. */
     eviction_progress = cache->eviction_progress;
-    prev_oldest_id = txn_global->oldest_id;
+    prev_oldest_id = WT_SHARED_VAR(txn_global, oldest_id);
 
     /* Evict pages from the cache. */
     for (loop = 0; cache->pass_intr == 0; loop++) {
@@ -787,8 +787,9 @@ __evict_pass(WT_SESSION_IMPL *session)
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
                 if (cache->evict_aggressive_score < 100)
                     ++cache->evict_aggressive_score;
-                oldest_id = txn_global->oldest_id;
-                if (prev_oldest_id == oldest_id && txn_global->current != oldest_id &&
+                oldest_id = WT_SHARED_VAR(txn_global, oldest_id);
+                if (prev_oldest_id == oldest_id &&
+                  WT_SHARED_VAR(txn_global, current) != oldest_id &&
                   cache->evict_aggressive_score < 100)
                     ++cache->evict_aggressive_score;
                 time_prev = time_now;
@@ -2059,7 +2060,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * evict the same page.
          */
         if (!__wt_page_evict_retry(session, page) ||
-          (modified && page->modify->update_txn >= conn->txn_global.last_running))
+          (modified && page->modify->update_txn >= conn->txn_global.shared_vars.last_running))
             continue;
 
 fast:
@@ -2456,7 +2457,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * more.
          */
         if (!busy && txn_shared->pinned_id != WT_TXN_NONE &&
-          txn_global->current != txn_global->oldest_id)
+          WT_SHARED_VAR(txn_global, current) != WT_SHARED_VAR(txn_global, oldest_id))
             busy = true;
         max_progress = busy ? 5 : 20;
 

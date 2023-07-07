@@ -706,7 +706,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
-        last_running = S2C(session)->txn_global.last_running;
+        last_running = S2C(session)->txn_global.shared_vars.last_running;
 
     /*
      * We depend on the atomic operation being a write barrier, that is, a barrier to ensure all
@@ -1849,7 +1849,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
-    if (txn_global->current == txn_global->oldest_id ||
+    if (WT_SHARED_VAR(txn_global, current) == WT_SHARED_VAR(txn_global, oldest_id) ||
       mod->last_eviction_id != __wt_txn_oldest_id(session))
         return (true);
 

@@ -436,9 +436,10 @@ __wt_update_obsolete_check(
          * state, ensure there is a modify structure.
          */
         if (count > 20 && page->modify != NULL) {
-            page->modify->obsolete_check_txn = txn_global->last_running;
+            page->modify->obsolete_check_txn = WT_SHARED_VAR(txn_global, last_running);
             if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+                page->modify->obsolete_check_timestamp =
+                  WT_SHARED_VAR(txn_global, pinned_timestamp);
         }
     }
 

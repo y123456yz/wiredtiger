@@ -119,23 +119,27 @@ struct __wt_txn_shared {
 };
 
 struct __wt_txn_global {
-    volatile uint64_t current; /* Current transaction ID. */
 
-    /* The oldest running transaction ID (may race). */
-    volatile uint64_t last_running;
+    struct {
+        volatile uint64_t current; /* Current transaction ID. */
+        /* The oldest running transaction ID (may race). */
+        volatile uint64_t last_running;
+        wt_timestamp_t durable_timestamp;
+        wt_timestamp_t last_ckpt_timestamp;
+        volatile bool checkpoint_running;    /* Checkpoint running */
+        WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
+        /*
+         * The oldest transaction ID that is not yet visible to some transaction in the system.
+         */
+        volatile uint64_t oldest_id;
+        wt_timestamp_t oldest_timestamp;
+        wt_timestamp_t pinned_timestamp;
+        wt_timestamp_t stable_timestamp;
+        volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
+    } shared_vars;
 
-    /*
-     * The oldest transaction ID that is not yet visible to some transaction in the system.
-     */
-    volatile uint64_t oldest_id;
-
-    wt_timestamp_t durable_timestamp;
-    wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
-    wt_timestamp_t oldest_timestamp;
-    wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
-    wt_timestamp_t stable_timestamp;
     wt_timestamp_t version_cursor_pinned_timestamp;
     bool has_durable_timestamp;
     bool has_oldest_timestamp;
@@ -159,15 +163,12 @@ struct __wt_txn_global {
      * We rely on the fact that (a) the only table a checkpoint updates is the metadata; and (b)
      * once checkpoint has finished reading a table, it won't revisit it.
      */
-    volatile bool checkpoint_running;    /* Checkpoint running */
     volatile bool checkpoint_running_hs; /* Checkpoint running and processing history store file */
     volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
 
-    volatile uint64_t debug_ops;       /* Debug mode op counter */
-    uint64_t debug_rollback;           /* Debug mode rollback */
-    volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
+    volatile uint64_t debug_ops; /* Debug mode op counter */
+    uint64_t debug_rollback;     /* Debug mode rollback */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 };

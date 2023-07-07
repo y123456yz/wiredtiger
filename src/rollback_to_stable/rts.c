@@ -36,9 +36,9 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &conn->api_lock);
 
-    // HERE 
-    // This is clunky. Should probably become a new WT_READ_SHARED macro. 
-    // However we'll need to think about how this interacts with us splitting 
+    // HERE
+    // This is clunky. Should probably become a new WT_READ_SHARED macro.
+    // However we'll need to think about how this interacts with us splitting
     // ORDERED_READ into two separate VOLATILE and ORDERED macros.
     // Similarly with PUBLISH
     WT_ORDERED_READ(session_cnt, WT_SHARED_VAR(conn, session_cnt));

@@ -472,7 +472,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
     if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
-        return (txn_global->metadata_pinned);
+        return (WT_SHARED_VAR(txn_global, metadata_pinned));
 
     /*
      * Take a local copy of these IDs in case they are updated while we are checking visibility. The
@@ -481,7 +481,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * with the oldest ID, which is what we want. The logged tables are excluded as part of RTS, so
      * there is no need of holding their oldest_id
      */
-    WT_ORDERED_READ(oldest_id, txn_global->oldest_id);
+    WT_ORDERED_READ(oldest_id, WT_SHARED_VAR(txn_global, oldest_id));
 
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
       F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
@@ -489,7 +489,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
          */
-        checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
+        checkpoint_pinned = WT_SHARED_VAR(txn_global, checkpoint_txn_shared).pinned_id;
         if (checkpoint_pinned == WT_TXN_NONE || WT_TXNID_LT(oldest_id, checkpoint_pinned))
             return (oldest_id);
         return (checkpoint_pinned);
@@ -531,7 +531,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
-    *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
+    *pinned_tsp = pinned_ts = WT_SHARED_VAR(txn_global, pinned_timestamp);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
@@ -1353,13 +1353,13 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      */
     if (publish) {
         WT_PUBLISH(txn_shared->is_allocating, true);
-        WT_PUBLISH(txn_shared->id, txn_global->current);
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        WT_PUBLISH(txn_shared->id, WT_SHARED_VAR(txn_global, current));
+        id = __wt_atomic_addv64(&WT_SHARED_VAR(txn_global, current), 1) - 1;
         session->txn->id = id;
         WT_PUBLISH(txn_shared->id, id);
         WT_PUBLISH(txn_shared->is_allocating, false);
     } else
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        id = __wt_atomic_addv64(&WT_SHARED_VAR(txn_global, current), 1) - 1;
 
     return (id);
 }
@@ -1663,7 +1663,7 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
         if (txn_shared->pinned_id == WT_TXN_NONE)
-            txn_shared->pinned_id = txn_global->last_running;
+            txn_shared->pinned_id = WT_SHARED_VAR(txn_global, last_running);
         if (txn_shared->metadata_pinned == WT_TXN_NONE)
             txn_shared->metadata_pinned = txn_shared->pinned_id;
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
@@ -1693,8 +1693,8 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
      */
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
-    *txn_active = (txn_global->oldest_id != txn_global->current ||
-      txn_global->metadata_pinned != txn_global->current);
+    *txn_active = (WT_SHARED_VAR(txn_global, oldest_id) != WT_SHARED_VAR(txn_global, current) ||
+      WT_SHARED_VAR(txn_global, metadata_pinned) != WT_SHARED_VAR(txn_global, current));
 
     return (0);
 }

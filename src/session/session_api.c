@@ -825,7 +825,8 @@ __session_blocking_checkpoint(WT_SESSION_IMPL *session)
          * This loop only checks objects that are declared volatile, therefore no barriers are
          * needed.
          */
-        if (!txn_global->checkpoint_running || txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
+        if (!WT_SHARED_VAR(txn_global, checkpoint_running) ||
+          txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
             break;
     }
 
@@ -2302,7 +2303,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     if (pinned == WT_TXN_NONE)
         *prange = 0;
     else
-        *prange = S2C(session)->txn_global.current - pinned;
+        *prange = S2C(session)->txn_global.shared_vars.current - pinned;
 
 err:
     API_END_RET(session, ret);

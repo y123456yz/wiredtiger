@@ -97,7 +97,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     conn->flush_most_recent = conn->ckpt_most_recent;
-    conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
+    conn->flush_ts = conn->txn_global.shared_vars.last_ckpt_timestamp;
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -730,15 +730,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * time and only write to the metadata.
      */
     __wt_writelock(session, &txn_global->rwlock);
-    txn_global->checkpoint_txn_shared = *txn_shared;
-    txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
+    WT_SHARED_VAR(txn_global, checkpoint_txn_shared) = *txn_shared;
+    WT_SHARED_VAR(txn_global, checkpoint_txn_shared).pinned_id = txn->snap_min;
 
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
      */
     WT_ASSERT(session,
-      WT_TXNID_LE(txn_global->oldest_id, txn_shared->id) &&
-        WT_TXNID_LE(txn_global->oldest_id, txn_shared->pinned_id));
+      WT_TXNID_LE(WT_SHARED_VAR(txn_global, oldest_id), txn_shared->id) &&
+        WT_TXNID_LE(WT_SHARED_VAR(txn_global, oldest_id), txn_shared->pinned_id));
 
     /*
      * Clear our entry from the global transaction session table. Any operation that needs to know
@@ -763,7 +763,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
         if (txn_global->has_stable_timestamp) {
-            txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
+            txn_global->checkpoint_timestamp = WT_SHARED_VAR(txn_global, stable_timestamp);
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
@@ -878,8 +878,9 @@ __txn_checkpoint_can_skip(
      * skip checkpoints.
      */
     if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
+      WT_SHARED_VAR(txn_global, last_ckpt_timestamp) != WT_TS_NONE &&
+      WT_SHARED_VAR(txn_global, last_ckpt_timestamp) ==
+        WT_SHARED_VAR(txn_global, stable_timestamp)) {
         *can_skipp = true;
         return (0);
     }
@@ -1293,7 +1294,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
      * the checkpoint_pinned flag.
      */
-    txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
+    WT_SHARED_VAR(txn_global, checkpoint_txn_shared).pinned_id = WT_TXN_NONE;
 
     if (full) {
         __checkpoint_stats(session);
@@ -1306,7 +1307,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
          */
         if (use_timestamp) {
-            conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
+            conn->txn_global.shared_vars.last_ckpt_timestamp = ckpt_tmp_ts;
             /*
              * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
              * cases it queries the recovery timestamp to determine the last stable recovery
@@ -1315,10 +1316,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
              * never be less than recovery timestamp. This could potentially avoid MongoDB making
              * two calls to determine last stable recovery timestamp.
              */
-            if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-                conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
+            if (conn->txn_global.shared_vars.last_ckpt_timestamp == WT_TS_NONE)
+                conn->txn_global.shared_vars.last_ckpt_timestamp =
+                  conn->txn_global.recovery_timestamp;
         } else
-            conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
+            conn->txn_global.shared_vars.last_ckpt_timestamp = WT_TS_NONE;
     }
 
 err:
@@ -1411,7 +1413,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
-    txn_global->checkpoint_running = true;
+    WT_SHARED_VAR(txn_global, checkpoint_running) = true;
 
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
@@ -1423,7 +1425,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __txn_checkpoint(session, cfg);
 
     WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
-    txn_global->checkpoint_running = false;
+    WT_SHARED_VAR(txn_global, checkpoint_running) = false;
 
     /*
      * Signal the tiered storage thread because it waits for the checkpoint to complete to process
