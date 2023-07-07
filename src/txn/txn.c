@@ -152,7 +152,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
-    uint32_t i, session_cnt_s;
+    uint32_t i, session_cnt;
     bool active;
 
     conn = S2C(session);
@@ -169,9 +169,9 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
+    WT_ORDERED_READ(session_cnt, conn->session_cnt_shared);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt_s; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* If the transaction is in the list, it is uncommitted. */
         if (s->id == txnid)
@@ -196,7 +196,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
-    uint32_t i, n, session_cnt_s;
+    uint32_t i, n, session_cnt;
 
     conn = S2C(session);
     txn = session->txn;
@@ -242,9 +242,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
+    WT_ORDERED_READ(session_cnt, conn->session_cnt_shared);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt_s; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -331,7 +331,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
-    uint32_t i, session_cnt_s;
+    uint32_t i, session_cnt;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -344,9 +344,9 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
+    WT_ORDERED_READ(session_cnt, conn->session_cnt_shared);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt_s; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Update the last running transaction ID. */
         while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
@@ -2602,7 +2602,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id;
-    uint32_t i, session_cnt_s;
+    uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -2643,8 +2643,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_txn_shared.pinned_id));
     WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txn_shared.id));
 
-    WT_ORDERED_READ(session_cnt_s, conn->session_cnt_s);
-    WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt_s));
+    WT_ORDERED_READ(session_cnt, conn->session_cnt_shared);
+    WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
     WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
 
     /*
@@ -2653,7 +2653,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
      * are active at the same time, which is OK since this is diagnostic code.
      */
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt_s; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Skip sessions with no active transaction */
         if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)

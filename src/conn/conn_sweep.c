@@ -282,7 +282,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 
     conn = S2C(session);
 
-    for (s = conn->sessions, i = 0; i < conn->session_cnt_s; ++s, ++i) {
+    for (s = conn->sessions, i = 0; i < conn->session_cnt_shared; ++s, ++i) {
         /*
          * Ignore inactive and internal sessions.
          */
