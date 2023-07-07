@@ -446,11 +446,11 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      * of the last checkpoint for later query. This gets saved in the connection.
      */
     WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
-    conn->txn_global.oldest_timestamp = oldest_timestamp;
+    conn->txn_global.oldest_timestamp_shared = oldest_timestamp;
     conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
-      __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
+      __wt_timestamp_to_string(conn->txn_global.oldest_timestamp_shared, ts_string));
 
     return (0);
 }
@@ -552,11 +552,11 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
 
     WT_ASSERT(session,
       conn->txn_global.has_stable_timestamp == false &&
-        conn->txn_global.stable_timestamp == WT_TS_NONE);
+        conn->txn_global.stable_timestamp_shared == WT_TS_NONE);
 
     /* Set the stable timestamp from recovery timestamp. */
-    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
+    conn->txn_global.stable_timestamp_shared = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.stable_timestamp_shared != WT_TS_NONE)
         conn->txn_global.has_stable_timestamp = true;
 
     return (0);
@@ -1011,8 +1011,8 @@ done:
           WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
           "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
           "oldest_timestamp=%s",
-          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp_shared, ts_string[0]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp_shared, ts_string[1]));
         rts_executed = true;
         WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
     }

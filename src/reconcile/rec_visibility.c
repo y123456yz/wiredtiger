@@ -847,7 +847,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     WT_ASSERT_ALWAYS(session,
       !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
-        upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared.id ||
+        upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared_shared.id ||
         WT_SESSION_IS_CHECKPOINT(session),
       "Metadata updates written from a checkpoint in a concurrent session");
 

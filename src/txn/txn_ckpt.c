@@ -97,7 +97,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     conn->flush_most_recent = conn->ckpt_most_recent;
-    conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
+    conn->flush_ts = conn->txn_global.last_ckpt_timestamp_shared;
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -730,15 +730,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * time and only write to the metadata.
      */
     __wt_writelock(session, &txn_global->rwlock);
-    txn_global->checkpoint_txn_shared = *txn_shared;
-    txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
+    txn_global->checkpoint_txn_shared_shared = *txn_shared;
+    txn_global->checkpoint_txn_shared_shared.pinned_id = txn->snap_min;
 
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
      */
     WT_ASSERT(session,
-      WT_TXNID_LE(txn_global->oldest_id, txn_shared->id) &&
-        WT_TXNID_LE(txn_global->oldest_id, txn_shared->pinned_id));
+      WT_TXNID_LE(txn_global->oldest_id_shared, txn_shared->id) &&
+        WT_TXNID_LE(txn_global->oldest_id_shared, txn_shared->pinned_id));
 
     /*
      * Clear our entry from the global transaction session table. Any operation that needs to know
@@ -763,9 +763,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
         if (txn_global->has_stable_timestamp) {
-            txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
+            txn_global->checkpoint_timestamp_shared = txn_global->stable_timestamp_shared;
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
-                txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
+                txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp_shared;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
     } else {
@@ -790,8 +790,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_UNUSED(original_snap_min);
 
     if (use_timestamp)
-        __wt_verbose_timestamp(
-          session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");
+        __wt_verbose_timestamp(session, txn_global->checkpoint_timestamp_shared,
+          "Checkpoint requested at stable timestamp");
 
     WT_STAT_CONN_SET(session, txn_checkpoint_snapshot_acquired, 1);
 
@@ -878,8 +878,8 @@ __txn_checkpoint_can_skip(
      * skip checkpoints.
      */
     if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
+      txn_global->last_ckpt_timestamp_shared != WT_TS_NONE &&
+      txn_global->last_ckpt_timestamp_shared == txn_global->stable_timestamp_shared) {
         *can_skipp = true;
         return (0);
     }
@@ -1118,7 +1118,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
      * reset to zero.
      */
-    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
+    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp_shared);
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
@@ -1293,7 +1293,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
      * the checkpoint_pinned flag.
      */
-    txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
+    txn_global->checkpoint_txn_shared_shared.pinned_id = WT_TXN_NONE;
 
     if (full) {
         __checkpoint_stats(session);
@@ -1306,7 +1306,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
          */
         if (use_timestamp) {
-            conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
+            conn->txn_global.last_ckpt_timestamp_shared = ckpt_tmp_ts;
             /*
              * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
              * cases it queries the recovery timestamp to determine the last stable recovery
@@ -1315,10 +1315,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
              * never be less than recovery timestamp. This could potentially avoid MongoDB making
              * two calls to determine last stable recovery timestamp.
              */
-            if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-                conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
+            if (conn->txn_global.last_ckpt_timestamp_shared == WT_TS_NONE)
+                conn->txn_global.last_ckpt_timestamp_shared = conn->txn_global.recovery_timestamp;
         } else
-            conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
+            conn->txn_global.last_ckpt_timestamp_shared = WT_TS_NONE;
     }
 
 err:

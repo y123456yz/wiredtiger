@@ -95,7 +95,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
         if (!txn_global->has_stable_timestamp)
             WT_RET_MSG(session, ENOTSUP,
               "cannot verify against the stable timestamp if it has not been set");
-        vs->stable_timestamp = txn_global->stable_timestamp;
+        vs->stable_timestamp = txn_global->stable_timestamp_shared;
     }
 
 #if !defined(HAVE_DIAGNOSTIC)

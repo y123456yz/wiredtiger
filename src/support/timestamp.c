@@ -137,7 +137,7 @@ __time_stable(WT_SESSION_IMPL *session)
 
     txn_global = &S2C(session)->txn_global;
 
-    return (txn_global->has_stable_timestamp ? txn_global->stable_timestamp :
+    return (txn_global->has_stable_timestamp ? txn_global->stable_timestamp_shared :
                                                txn_global->recovery_timestamp);
 }
 

@@ -74,7 +74,7 @@ __check_imported_ts(
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
-    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
+    ts = against_stable ? txn_global->stable_timestamp_shared : txn_global->oldest_timestamp_shared;
     ts_name = against_stable ? "stable" : "oldest";
 
     WT_ERR_NOTFOUND_OK(

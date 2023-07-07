@@ -1514,7 +1514,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
      * values of the oldest timestamp.
      */
 
-    oldest_timestamp = txn_global->oldest_timestamp;
+    oldest_timestamp = txn_global->oldest_timestamp_shared;
     WT_READ_BARRIER();
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
@@ -1544,7 +1544,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
       " base write gen: %" PRIu64,
       txn->snap_min, txn->snap_max, txn->snapshot_count,
-      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+      __wt_timestamp_to_string(txn_global->oldest_timestamp_shared, ts_string[0]),
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
       conn->base_write_gen);
 
