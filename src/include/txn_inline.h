@@ -481,7 +481,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * with the oldest ID, which is what we want. The logged tables are excluded as part of RTS, so
      * there is no need of holding their oldest_id
      */
-    WT_ORDERED_READ(oldest_id, txn_global->oldest_id);
+    WT_READ_ONCE(oldest_id, txn_global->oldest_id);
 
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
       F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
@@ -531,18 +531,16 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
+    __wt_readlock(session, &txn_global->rwlock);
     *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
 
     /*
-     * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
-     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
-     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
-     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
-     * minimum of it with the oldest timestamp, which is what we want.
+     * Return the older of the two, the checkpoint timestamp and the pinned timestamp. Both are
+     * updated within write locks using the same lock. Thus if we lock around both we can guarantee
+     * they are from the same time.
      */
-    WT_READ_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
-
+    __wt_readunlock(session, &txn_global->rwlock);
     if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;
 }

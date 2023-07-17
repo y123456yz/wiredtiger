@@ -608,7 +608,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * transaction running when reconciliation starts is considered uncommitted.
      */
     txn_global = &S2C(session)->txn_global;
-    WT_ORDERED_READ(r->last_running, txn_global->last_running);
+    WT_READ_ONCE(r->last_running, txn_global->last_running);
 
     /*
      * Cache the pinned timestamp and oldest id, these are used to when we clear obsolete timestamps
@@ -623,7 +623,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * checkpoints into account.
      */
     if (WT_IS_METADATA(session->dhandle)) {
-        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+        WT_READ_ONCE(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }

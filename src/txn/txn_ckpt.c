@@ -1118,7 +1118,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
      * reset to zero.
      */
-    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
+    WT_READ_ONCE(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 

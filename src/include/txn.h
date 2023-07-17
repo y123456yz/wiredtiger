@@ -122,20 +122,57 @@ struct __wt_txn_global {
     volatile uint64_t current; /* Current transaction ID. */
 
     /* The oldest running transaction ID (may race). */
-    volatile uint64_t last_running;
 
-    /*
-     * The oldest transaction ID that is not yet visible to some transaction in the system.
+    /* Read with lock by RTS, maybe too perf sensitive to be read with lock by everything. */
+    wt_timestamp_t pinned_timestamp; //Read with read barrier 
+
+    /* Has a relationship with pinned timestamp described in: txn_inline.h:537 which also implies a relation ship with the 
+     * checkpoint generation. However that relationship was since removed in WT-7995.
+     * Thus according to that code we must read:
+     * - pinned_timestamp
+     * - checkpoint_timestamp
+     *
+     * The implication of the order is that we the read of the pinned timestamp to not be ordered 
+     * across the read of the checkpoint timestamp. Doing so could result in additional content being 
+     * pinned.
+     *
+     * The original ordering between these two variables was determined in this PR:
+     * https://github.com/wiredtiger/wiredtiger/pull/4147/files
+     * It appears the code merely wants the minimum of the two. The read barrier seems misplaced as 
+     * taking a lock would have the same effect. There is no ordering here on the other side, we 
+     * should only need a lock.
+     *
+     * __wt_txn_stats_update needs its code replaced with __wt_txn_pinned_timestamp.
+     *
+     * Both checkpoint timestamp and pinned timestamp are written to in a lock therefore if we lock
+     * around both we guarantee the correct values. 
+     * It seems like the following rule should apply, if no coordination between pinned and checkpoint 
+     * is required then a READ_ONCE is sufficent, however a more obvious solution would be to reintroduce:
+     * WT_WITH_TIMESTAMP_READLOCK and a lock taken on all reads except in the checkpoint path.
+     * 
+     * Ran into some confusiong about __wt_txn_pinned_timestamp vs __wt_txn_get_pinned_timestamp.
+     * __wt_txn_get_pinned_timestamp doesn't really use the pinned timestamp??? I think we can work
+     * around it but its confusing.
      */
-    volatile uint64_t oldest_id;
+    wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */ //Read with read barrier
+
+
+
+    /* Should be read within a lock. */
+    wt_timestamp_t stable_timestamp; //Read with read barrier
+
+
+    volatile uint64_t oldest_id; //Read with read barrier
+
+    volatile bool checkpoint_running;    /* Checkpoint running */ //Read with read barrier
+    volatile uint64_t last_running; //Read with read barrier
+    wt_timestamp_t oldest_timestamp; //Read with read barrier
+
 
     wt_timestamp_t durable_timestamp;
     wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
-    wt_timestamp_t oldest_timestamp;
-    wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
-    wt_timestamp_t stable_timestamp;
     wt_timestamp_t version_cursor_pinned_timestamp;
     bool has_durable_timestamp;
     bool has_oldest_timestamp;
@@ -159,11 +196,9 @@ struct __wt_txn_global {
      * We rely on the fact that (a) the only table a checkpoint updates is the metadata; and (b)
      * once checkpoint has finished reading a table, it won't revisit it.
      */
-    volatile bool checkpoint_running;    /* Checkpoint running */
     volatile bool checkpoint_running_hs; /* Checkpoint running and processing history store file */
     volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
-    wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
+    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */ //Partially read with read barrier
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */
