@@ -1317,6 +1317,7 @@ __wt_row_leaf_key(
      * The alternative is an on-page cell with some kind of compressed or overflow key that's never
      * been instantiated. Call the underlying worker function to figure it out.
      */
+        printf("3\n");
     return (__wt_row_leaf_key_work(session, page, rip, key, instantiate));
 }
 

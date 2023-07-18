@@ -96,6 +96,7 @@ __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
 /* Magic constant: check 3 records before/after the selected record. */
 #define WT_RANDOM_SKIP_LOCAL 3
 /* Magic constant: retry 3 times in a skip list before giving up. */
+/* Setting this to 0 gives a better coverage. */
 #define WT_RANDOM_SKIP_RETRY 3
 
 /*
@@ -122,6 +123,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
          */
         saved_ins = NULL;
         i = __wt_random(&session->rnd) % entries;
+        // printf("__random_leaf_skip i is %d, entries %u\n", i, entries);
         for (ins = WT_SKIP_FIRST(ins_head); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
             if (--i == 0)
                 break;
@@ -240,12 +242,20 @@ __random_leaf_disk(WT_CURSOR_BTREE *cbt, bool *validp)
     page = cbt->ref->page;
     session = CUR2S(cbt);
     entries = cbt->ref->page->entries;
+    printf("__random_leaf_disk: Number of entries %u\n", entries);
 
     /* This is a relatively cheap test, so try several times. */
     for (retry = 0; retry < WT_RANDOM_DISK_RETRY; ++retry) {
         slot = __wt_random(&session->rnd) % entries;
+        printf("__random_leaf_disk: Select slot %u\n", slot);
         WT_RET(__wt_row_leaf_key(session, page, page->pg_row + slot, cbt->tmp, false));
         WT_RET(__random_slot_valid(cbt, slot, validp));
+        printf("__random_leaf_disk: Key tmp is %s\n", (char *)cbt->tmp->data);
+        printf("__random_leaf_disk: Key row_key is %s\n", (char *)cbt->row_key->data);
+
+        // WT_RET(__wt_debug_disk(session, page->dsk, NULL, true));
+        // zyw
+        // WT_RET(__wt_debug_page(session, NULL, cbt->ref, NULL, true));
         if (*validp)
             break;
     }
@@ -269,6 +279,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
     uint32_t i;
     bool next, valid;
+    bool a, b;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -279,26 +290,46 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
      * a reasonable chunk of the name space.
      */
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH) {
+        // Might be the reason why we are always going towards the end.
         WT_RET(__random_leaf_disk(cbt, &valid));
-        if (valid)
+        if (valid) {
+            printf("Valid 1\n\n");
             return (__cursor_kv_return(cbt, cbt->upd_value));
+        } else {
+            printf("Disk entry invalid!\n");
+        }
+    } else {
+        printf("Not enough disk based entries: %u!\n", cbt->ref->page->entries);
     }
 
     /* Look for any large insert list and select from it. */
     WT_RET(__random_leaf_insert(cbt, &valid));
-    if (valid)
+    if (valid) {
+        printf("Valid 2\n\n");
         return (__cursor_kv_return(cbt, cbt->upd_value));
+    } else {
+        printf("Value from __random_leaf_insert invalid!\n");
+    }
 
     /*
      * Try again if there are at least a few hundred disk-based entries or this is a page as we read
      * it from disk, it might be a normal leaf page with big items.
      */
+    // The second condition is true and we end up here which creates the bias. By removing it, are
+    // we removing a lot of potential candidates?
+    a = cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH / 5;
+    b = (cbt->ref->page->dsk != NULL && cbt->ref->page->modify == NULL);
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH / 5 ||
       (cbt->ref->page->dsk != NULL && cbt->ref->page->modify == NULL)) {
+        printf("First condition %d, second %d\n", a, b);
         WT_RET(__random_leaf_disk(cbt, &valid));
-        if (valid)
+        if (valid) {
+            printf("Valid 3\n\n");
             return (__cursor_kv_return(cbt, cbt->upd_value));
+        }
     }
+
+    printf("Nothing valid\n\n");
 
     /*
      * We don't have many disk-based entries, we didn't find any large insert lists. Where we get
@@ -362,7 +393,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *current, *descent;
-    uint32_t i, entries, retry;
+    uint32_t i, entries, retry, index_tmp;
     bool eviction;
 
     *refp = NULL;
@@ -379,25 +410,32 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 
     if (0) {
 restart:
-        /*
-         * Discard the currently held page and restart the search from the root.
-         */
+        /* Discard the currently held page and restart the search from the root. */
+        // printf("Restarting the search...\n");
         WT_RET(__wt_page_release(session, current, flags));
     }
 
     /* Search the internal pages of the tree. */
     current = &btree->root;
+    printf("Root is %p\n", current->page);
     for (;;) {
-        if (F_ISSET(current, WT_REF_FLAG_LEAF))
+        if (F_ISSET(current, WT_REF_FLAG_LEAF)) {
+            printf("WT_REF_FLAG_LEAF set on %p, breaking\n", current->page);
             break;
+        }
 
         page = current->page;
+        printf("Current page is now %p, internal %d\n", page, WT_PAGE_IS_INTERNAL(page));
         WT_INTL_INDEX_GET(session, page, pindex);
         entries = pindex->entries;
+        // This is interesting ?
+        printf("pindex entries %u\n", entries);
 
         /* Eviction just wants any random child. */
         if (eviction) {
-            descent = pindex->index[__wt_random(&session->rnd) % entries];
+            i = __wt_random(&session->rnd) % entries;
+            printf("Inside if(eviction), i is %u\n", i);
+            descent = pindex->index[i];
             goto descend;
         }
 
@@ -412,21 +450,38 @@ restart:
          */
         descent = NULL;
         for (i = 0; i < entries; ++i) {
-            descent = pindex->index[__wt_random(&session->rnd) % entries];
-            if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM)
+            index_tmp = __wt_random(&session->rnd);
+            // printf("Looking for non empty page...\n");
+            printf("random %u and entries %u\n", index_tmp, entries);
+            index_tmp = index_tmp % entries;
+            printf("Index i is %u\n", index_tmp);
+            descent = pindex->index[index_tmp];
+            if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM) {
+                printf("break 1, descent %p, internal %d, state %u\n", descent->page,
+                  WT_PAGE_IS_INTERNAL(descent->page), descent->state);
                 break;
+            }
         }
-        if (i == entries)
+        if (i == entries) {
+            // We don't seem to ever come here.
+            printf("i is equal to the number of entries!\n");
             for (i = 0; i < entries; ++i) {
                 descent = pindex->index[i];
-                if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM)
+                if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM) {
+                    printf("break 2\n");
                     break;
+                }
             }
+        }
         if (i == entries || descent == NULL) {
-            if (--retry > 0)
+            printf("i is equal to the number of entries or descent is NULL!\n");
+            if (--retry > 0) {
+                printf("Calling goto restart\n");
                 goto restart;
+            }
 
             WT_RET(__wt_page_release(session, current, flags));
+            printf("Returning WT_NOTFOUND!\n");
             return (WT_NOTFOUND);
         }
 
@@ -437,16 +492,23 @@ restart:
          * On other error, simply return, the swap call ensures we're holding nothing on failure.
          */
 descend:
+        printf("Calling __wt_page_swap, current %p, descent %p\n", current->page, descent->page);
         if ((ret = __wt_page_swap(session, current, descent, flags)) == 0) {
             current = descent;
+            printf("Called __wt_page_swap, current %p, descent %p\n", current->page, descent->page);
             continue;
         }
-        if (eviction && (ret == WT_NOTFOUND || ret == WT_RESTART))
+        if (eviction && (ret == WT_NOTFOUND || ret == WT_RESTART)) {
+            printf("break 3\n");
             break;
+        }
         if (ret == WT_RESTART)
             goto restart;
+        printf("Returning %d!\n", ret);
         return (ret);
     }
+
+    printf("Outside for loop\n");
 
     /*
      * There is no point starting with the root page: the walk will exit immediately. In that case
@@ -505,11 +567,14 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      * If we don't have a current position in the tree, or if retrieving random values without
      * sampling, pick a roughly random leaf page in the tree and return an entry from it.
      */
+    // WT_CLEAR(*cbt->tmp);
     if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
         WT_WITH_PAGE_INDEX(session, ret = __wt_random_descent(session, &cbt->ref, read_flags));
         if (ret == 0) {
+            printf("Selecting a random leaf\n");
             WT_ERR(__random_leaf(cbt));
+            // We always return here.
             return (0);
         }
 
