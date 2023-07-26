@@ -252,6 +252,7 @@ __compact_worker(WT_SESSION_IMPL *session)
      * time, so we're not compacting 10% of the original file each time). Try 100 times (which is
      * clearly more than we need); quit if we make no progress.
      */
+    session->compact->first_pass = true;
     for (loop = 0; loop < 100; ++loop) {
         /* Step through the list of files being compacted. */
         for (another_pass = false, i = 0; i < session->op_handle_next; ++i) {
@@ -384,6 +385,9 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
+
+    // Minimum space to reclaim, retrieved from the config.
+    session->compact->threshold = 40 * WT_MEGABYTE;
 
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a

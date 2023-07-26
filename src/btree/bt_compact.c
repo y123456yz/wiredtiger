@@ -330,6 +330,8 @@ __wt_compact(WT_SESSION_IMPL *session)
      * source if we make no progress).
      */
     WT_RET(bm->compact_skip(bm, session, &skip));
+    __wt_verbose_info(
+      session, WT_VERB_COMPACT, "%s: compact_skip skip? %d", bm->block->name, skip);
     if (skip) {
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
         WT_STAT_DATA_INCR(session, btree_compact_skipped);

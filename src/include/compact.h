@@ -7,9 +7,12 @@
  */
 
 struct __wt_compact_state {
+    bool first_pass;  /* First pass */
+    uint32_t threshold;  /* Threshold */
     uint32_t lsm_count;  /* Number of LSM trees seen */
     uint32_t file_count; /* Number of files seen */
     uint64_t max_time;   /* Configured timeout */
+    uint64_t file_size;   /* File size */
 
     struct timespec begin; /* Starting time */
 };

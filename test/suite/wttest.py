@@ -149,7 +149,7 @@ class CapturedFd(object):
         This is generally called after 'release' is called.
         """
         if self.hasUnexpectedOutput(testcase):
-            contents = self.readFileFrom(self.filename, self.expectpos, 10000)
+            contents = self.readFileFrom(self.filename, self.expectpos, 100000)
             WiredTigerTestCase.prout('ERROR: ' + self.filename +
                                      ' unexpected ' + self.desc +
                                      ', contains:\n"' + contents + '"')

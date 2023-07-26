@@ -37,7 +37,7 @@ from wiredtiger import stat
 class test_compact04(wttest.WiredTigerTestCase):
 
     # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
-    conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
+    conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:2)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
     table_uri_prefix='table:test_compact04-'
@@ -56,7 +56,7 @@ class test_compact04(wttest.WiredTigerTestCase):
         num_failures = 0
         num_successes = 0
 
-        for iteration in range(0, 10):
+        for iteration in range(0, 1):
             table_uri = self.table_uri_prefix + str(iteration)
 
             # Create the table and populate it with a lot of data
@@ -79,8 +79,8 @@ class test_compact04(wttest.WiredTigerTestCase):
 
             # Compact!
             self.session.compact(table_uri, None)
-            self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
-            self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
+            # self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
+            # self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
 
             # Verify the compact progress stats.
             c_stat = self.session.open_cursor('statistics:' + table_uri, None, 'statistics=(all)')

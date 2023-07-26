@@ -130,6 +130,8 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     ninety = file_size - file_size / 10;
     eighty = file_size - ((file_size / 10) * 2);
 
+    __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1, "Estimating? %d", estimate);
+
     WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, start_offset)
     {
         off = ext->off;
@@ -154,10 +156,14 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
      * We could push this further, but there's diminishing returns, a mostly empty file can be
      * processed quickly, so more aggressive compaction is less useful.
      */
-    if (avail_eighty > WT_MEGABYTE && avail_eighty >= ((file_size / 10) * 2)) {
+    if (avail_eighty > WT_MEGABYTE &&
+      ((avail_eighty >= ((file_size / 10) * 2)) ||
+        (session->compact->threshold > 0 && avail_eighty > session->compact->threshold))) {
         *skipp = false;
         *compact_pct_tenths_p = 2;
-    } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= file_size / 10) {
+    } else if (avail_ninety > WT_MEGABYTE &&
+      (avail_ninety >= file_size / 10 ||
+        (session->compact->threshold > 0 && avail_ninety > session->compact->threshold))) {
         *skipp = false;
         *compact_pct_tenths_p = 1;
     } else {
@@ -169,6 +175,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
         __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
           "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
           block->compact_pages_reviewed, block->compact_pages_rewritten);
+
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
@@ -185,6 +192,8 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
       ") in the first 90%% of the file to perform compaction, compaction %s",
       block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
       (uintmax_t)(file_size / 10), *skipp ? "skipped" : "proceeding");
+    __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1, "What's targeted: %uMB",
+      session->compact->threshold / WT_MEGABYTE);
 }
 
 /*
@@ -368,6 +377,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         /* If there is more work that could be done, repeat with the shorter file. */
         ext = __wt_block_off_srch_inclusive(&block->live.avail, compact_start_off);
         file_size = ext == NULL ? compact_start_off : WT_MIN(ext->off, compact_start_off);
+        __wt_verbose_debug1(
+          session, WT_VERB_COMPACT, "%s", "Calling __block_compact_skip_internal ESTIMATING");
         __block_compact_skip_internal(
           session, block, true, file_size, write_off, extra_space, &skip, &compact_pct_tenths);
         if (skip)
@@ -446,10 +457,12 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * we need some metrics to decide if it's worth doing. Ignore small files, and files where we
      * are unlikely to recover 10% of the file.
      */
-    if (block->size <= WT_MEGABYTE) {
+    // TODO - What if the threshold is 0?
+    if (session->compact->threshold > block->size) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
-          block->name, (uintmax_t)block->size);
+          "%s: skipping because the file size %" PRIuMAX
+          "B must be greater than the threshold %uB.",
+          block->name, (uintmax_t)block->size, session->compact->threshold);
 
         return (0);
     }
@@ -460,8 +473,21 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_2))
         __block_dump_file_stat(session, block, true);
 
-    __block_compact_skip_internal(
-      session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+    /* Here I want to check how much is available. */
+    __wt_verbose_debug1(session, WT_VERB_COMPACT, "Bytes available: %luMB and threshold is %uMB",
+      block->live.avail.bytes / WT_MEGABYTE, session->compact->threshold / WT_MEGABYTE);
+    if (session->compact->threshold == 0) {
+        __wt_verbose_debug1(session, WT_VERB_COMPACT, "%s", "We have reached the threshold!");
+        *skipp = true;
+    } else if (session->compact->threshold > block->live.avail.bytes) {
+        __wt_verbose_debug1(session, WT_VERB_COMPACT, "%s", "Not enough bytes available!");
+    } else {
+        __wt_verbose_debug1(
+          session, WT_VERB_COMPACT, "%s", "Calling __block_compact_skip_internal NOT estimating");
+        __block_compact_skip_internal(
+          session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+    }
+
     __wt_spin_unlock(session, &block->live_lock);
 
     return (0);
@@ -652,6 +678,7 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     WT_EXTLIST *el;
     wt_off_t decile[10], percentile[100], size;
     uintmax_t bucket_size;
+    uintmax_t diff;
     u_int i;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
@@ -714,4 +741,43 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     for (i = 0; i < WT_ELEMENTS(decile); ++i)
         __block_dump_bucket_stat(session, (uintmax_t)size, (uintmax_t)el->bytes, bucket_size,
           (uintmax_t)decile[i] * 512, i * 10);
+
+    // We are doing the nth pass, time to check where we are at.
+    if (session->compact != NULL) {
+        __wt_verbose_debug1(session, WT_VERB_COMPACT, "%s", "Compaction checks...");
+        // Nothing to do for the first pass.
+        if (session->compact->first_pass) {
+            session->compact->first_pass = false;
+        } else {
+            __wt_verbose_debug1(session, WT_VERB_COMPACT,
+              "Previous file size is %luMB and new is %ldMB",
+              session->compact->file_size / WT_MEGABYTE, size / WT_MEGABYTE);
+            // The file size may have gotten bigger?
+            if (session->compact->file_size >= (uintmax_t)size)
+                diff = session->compact->file_size - (uintmax_t)size;
+            else {
+                __wt_verbose_debug1(session, WT_VERB_COMPACT, "%s", "The file got bigger!");
+                diff = 0;
+            }
+            __wt_verbose_debug1(
+              session, WT_VERB_COMPACT, "Bytes compacted %luMB", diff / WT_MEGABYTE);
+            // Update the threshold with what we have compacted so far.
+            if (diff < session->compact->threshold)
+                session->compact->threshold -= diff;
+            else
+              // We may have compacted more than we want, it's fine!
+                session->compact->threshold = 0;
+            __wt_verbose_debug1(session, WT_VERB_COMPACT, "Threshold is now %uMB",
+              session->compact->threshold / WT_MEGABYTE);
+        }
+        __wt_verbose_debug1(
+          session, WT_VERB_COMPACT, "Setting file size to %ldMB", size / WT_MEGABYTE);
+        session->compact->file_size = (uintmax_t)size;
+
+        // If the space available is less than the target, it is time to stop.
+        if (el->bytes < session->compact->threshold) {
+            __wt_verbose_debug1(session, WT_VERB_COMPACT, "Bytes available < threshold! %uMB",
+              session->compact->threshold / WT_MEGABYTE);
+        }
+    }
 }
