@@ -1180,11 +1180,12 @@ err:
     WT_TRET(__wt_sweep_destroy(session));
 
     /*
-     * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
-     * we're about to do a final checkpoint separately from the checkpoint server.
+     * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
+     * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
+    WT_TRET(__wt_compact_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -1201,6 +1202,7 @@ err:
      */
     WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
     WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
+    WT_TRET(__wt_chunkcache_teardown(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -1308,6 +1310,8 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
+    //set the open_session method's session name
+    session_ret->name = "connection-open-session";
     *wt_sessionp = &session_ret->iface;
 
 err:
@@ -2901,7 +2905,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
