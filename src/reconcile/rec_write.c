@@ -32,7 +32,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t time_start, time_stop, time_stop2;
     bool no_reconcile_set, page_locked;
+    time_start = __wt_clock(session);
 
     btree = S2BT(session);
     page = ref->page;
@@ -79,6 +81,11 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      */
     WT_PAGE_LOCK(session, page);
     page_locked = true;
+    time_stop2 = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(
+      session, wt_reconcile_page_lock_time, WT_CLOCKDIFF_MS(time_stop2, time_start));
+    if (WT_CLOCKDIFF_MS(time_stop2, time_start) > 1)
+        printf("yang test ........__wt_reconcile..... page lock:%lu ms\r\n", WT_CLOCKDIFF_MS(time_stop2, time_start));
 
     /*
      * Now that the page is locked, if attempting to evict it, check again whether eviction is
@@ -96,6 +103,13 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     /* If writing a page in service of compaction, we're done, clear the flag. */
     F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
+
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, wt_reconcile_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 100)
+        WT_RET(__wt_msg(session, "yang test ...page size:%d.....__wt_reconcile..... reconcile:%lu ms", 
+            (int)page->memory_footprint, WT_CLOCKDIFF_MS(time_stop, time_start)));
 
 err:
     if (page_locked)
@@ -221,7 +235,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
-    uint64_t rec_hs_wrapup, rec_img_build, rec, rec_start, rec_finish;
+    uint64_t rec_hs_wrapup, rec_img_build, rec, rec_start, rec_finish, reconcile_pagetime;
     void *addr;
 
     btree = S2BT(session);
@@ -275,6 +289,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
+    reconcile_pagetime = __wt_clock(session);
     if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
@@ -376,7 +391,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       conn->cache->reentry_hs_eviction_ms)
         conn->cache->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
-
+    if (rec > 500)
+       WT_IGNORE_RET(__wt_msg(session, "yang test page size:%lu, page->type:%u, __reconcile..rec:%lu, rec_hs_wrapup:%lu, rec_img_build:%lu, reconcile_pagetime:%lu",
+        page->memory_footprint, page->type, rec, rec_hs_wrapup, rec_img_build, WT_CLOCKDIFF_MS(reconcile_pagetime, rec_start)));
+     //   printf("yang test page size:%lu, page->type:%u, __reconcile..rec:%lu, rec_hs_wrapup:%lu, rec_img_build:%lu, reconcile_pagetime:%lu\r\n",
+      //      page->memory_footprint, page->type, rec, rec_hs_wrapup, rec_img_build, WT_CLOCKDIFF_MS(reconcile_pagetime, rec_start));
 err:
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");

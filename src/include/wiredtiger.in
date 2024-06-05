@@ -8046,18 +8046,46 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_BYTES_READ			4000
 /*! session: bytes written from cache */
 #define	WT_STAT_SESSION_BYTES_WRITE			4001
+/*! session: cursor read ms */
+#define	WT_STAT_SESSION_CURSOR_READ_MS			4002
+/*! session: cursor write ms */
+#define	WT_STAT_SESSION_CURSOR_WRITE_MS			4003
 /*! session: dhandle lock wait time (usecs) */
-#define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4002
+#define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4004
 /*! session: dirty bytes in this txn */
-#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4003
+#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4005
+/*! session: page insert wait pagelock time ms */
+#define	WT_STAT_SESSION_PAGE_INSERT_WAIT_PAGELOCK_TIME	4006
 /*! session: page read from disk to cache time (usecs) */
-#define	WT_STAT_SESSION_READ_TIME			4004
+#define	WT_STAT_SESSION_READ_TIME			4007
+/*! session: page split insert time ms */
+#define	WT_STAT_SESSION_PAGE_SPLIT_INSERT_TIME		4008
+/*! session: page split multi time ms */
+#define	WT_STAT_SESSION_PAGE_SPLIT_MULTI_TIME		4009
+/*! session: page split reverse time ms */
+#define	WT_STAT_SESSION_PAGE_SPLIT_REVERSE_TIME		4010
+/*! session: page split rewrite time ms */
+#define	WT_STAT_SESSION_PAGE_SPLIT_REWRITE_TIME		4011
 /*! session: page write from cache to disk time (usecs) */
-#define	WT_STAT_SESSION_WRITE_TIME			4005
+#define	WT_STAT_SESSION_WRITE_TIME			4012
+/*! session: page_in_func evict page sleep ms */
+#define	WT_STAT_SESSION_PAGE_IN_FUNC_EVICT_PAGE_SLEEP	4013
+/*! session: page_in_func other page sleep ms */
+#define	WT_STAT_SESSION_PAGE_IN_FUNC_OTHER_PAGE_SLEEP	4014
+/*! session: page_in_func ref locked page sleep ms */
+#define	WT_STAT_SESSION_PAGE_IN_FUNC_REF_LOCKED_PAGE_SLEEP	4015
+/*! session: page_in_func time ms */
+#define	WT_STAT_SESSION_PAGE_IN_FUNC_TIME		4016
+/*! session: page_in_func_page read time  ms */
+#define	WT_STAT_SESSION_PAGE_IN_FUNC_PAGE_READ_TIME	4017
 /*! session: schema lock wait time (usecs) */
-#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4006
+#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4018
 /*! session: time waiting for cache (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME			4007
+#define	WT_STAT_SESSION_CACHE_TIME			4019
+/*! session: wt_reconcile page lock time ms */
+#define	WT_STAT_SESSION_WT_RECONCILE_PAGE_LOCK_TIME	4020
+/*! session: wt_reconcile time ms */
+#define	WT_STAT_SESSION_WT_RECONCILE_TIME		4021
 /*! @} */
 /*
  * Statistics section: END

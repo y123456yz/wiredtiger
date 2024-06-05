@@ -963,6 +963,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * have been set.  Don't forget to update the API documentation if you
      * alter the bounds for any of the parameters here.
      */
+
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
 
@@ -970,6 +971,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
         btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
           ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
+          
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
@@ -1037,6 +1039,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         btree->maxleafkey = leaf_split_size / 10;
     if (btree->maxleafvalue == 0)
         btree->maxleafvalue = leaf_split_size / 2;
+
+
+    printf("yang test .....22...................btree->maxintlpage:%d, btree->maxleafpage:%d, maxmempage:%d, splitmempage:%d, maxmempage_image:%u, \r\n",
+        (int)(btree->maxintlpage),(int)(btree->maxleafpage), (int)btree->maxmempage, (int)btree->splitmempage, (btree->maxmempage_image));
+    
 
     return (0);
 }

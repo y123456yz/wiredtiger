@@ -1197,6 +1197,20 @@ join_stats = sorted(join_stats, key=attrgetter('desc'))
 # Session statistics
 ##########################################
 session_stats = [
+    SessionStat('cursor_write_ms', 'cursor write ms'),
+    SessionStat('cursor_read_ms', 'cursor read ms'),
+    SessionStat('page_in_func_ref_locked_page_sleep', 'page_in_func ref locked page sleep ms'),
+    SessionStat('page_in_func_evict_page_sleep', 'page_in_func evict page sleep ms'),
+    SessionStat('page_in_func_other_page_sleep', 'page_in_func other page sleep ms'),
+    SessionStat('page_in_func_page_read_time', 'page_in_func_page read time  ms'),
+    SessionStat('page_in_func_time', 'page_in_func time ms'),
+    SessionStat('wt_reconcile_time', 'wt_reconcile time ms'),
+    SessionStat('wt_reconcile_page_lock_time', 'wt_reconcile page lock time ms'),
+    SessionStat('page_split_insert_time', 'page split insert time ms'),
+    SessionStat('page_split_multi_time', 'page split multi time ms'),
+    SessionStat('page_split_reverse_time', 'page split reverse time ms'),
+    SessionStat('page_split_rewrite_time', 'page split rewrite time ms'),
+    SessionStat('page_insert_wait_pagelock_time', 'page insert wait pagelock time ms'),
     SessionStat('bytes_read', 'bytes read into cache'),
     SessionStat('bytes_write', 'bytes written from cache'),
     SessionStat('cache_time', 'time waiting for cache (usecs)'),

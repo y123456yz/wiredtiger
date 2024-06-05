@@ -329,6 +329,94 @@ pre_load_data(WTPERF *wtperf)
     testutil_check(session->close(session, NULL));
 }
 
+static void
+print_cursor(WT_CURSOR *cursor, WTPERF *wtperf)
+{
+    const char *desc, *pvalue;
+    int64_t value;
+    int ret;
+    bool print_count = false;
+    char buf[1024];
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_value(cursor, &desc, &pvalue, &value));
+        // if (value == 0) {
+        /*if (strcmp(desc, "cursor write ms") == 0 || strcmp(desc, "cursor read ms") == 0 ||
+          strcmp(desc, "page_in_func ref locked page sleep ms") == 0 ||
+          strcmp(desc, "page_in_func evict page sleep ms") == 0 ||
+          strcmp(desc, "page_in_func other page sleep ms") == 0 ||
+          strcmp(desc, "page_in_func_page read time  ms") == 0 ||
+          strcmp(desc, "page_in_func time ms") == 0 || strcmp(desc, "wt_reconcile time ms") == 0 ||
+
+          strcmp(desc, "wt_reconcile page lock time ms") == 0 ||
+          strcmp(desc, "page split insert time ms") == 0 ||
+          strcmp(desc, "page split multi time ms") == 0 ||
+          strcmp(desc, "wt_reconcile time ms") == 0 ||
+          strcmp(desc, "page split reverse time ms") == 0 ||
+          strcmp(desc, "page split rewrite time ms") == 0 ||
+          strcmp(desc, "page insert wait pagelock time ms") == 0) {
+
+            print_count = true;
+            printf("%s=%s, ", desc, pvalue);
+        }*/
+        if (value >= 0) {
+            if (strcmp(desc, "session: cursor write ms") == 0 && value < 20)
+                return;
+            if (strcmp(desc, "session: cursor read ms") == 0 && value < 20)
+                return;
+            
+           // if (strcmp(desc, "session: wt_reconcile time ms") == 0 && value <= 5)
+           //     return;
+
+            if (strcmp(desc, "session: page read from disk to cache time (usecs)") == 0 && value < 1000)
+                continue;
+            if (strcmp(desc, "session: page write from cache to disk time (usecs)") == 0 && value < 1000)
+                continue;
+            if (strcmp(desc, "session: time waiting for cache (usecs)") == 0 && value < 10000)
+                continue;
+            
+
+            if (strcmp(desc, "session: dirty bytes in this txn") == 0 && value < 102400)
+                continue;
+            if (strcmp(desc, "session: bytes read into cache") == 0 && value < 102400)
+                continue;
+            if (strcmp(desc, "session: bytes written from cache") == 0 && value < 102400)
+                continue;
+            
+
+            snprintf(buf + strlen(buf), sizeof(buf), "%s=[%s], ", desc, pvalue);
+            print_count = true;
+            //printf("%s=%s, ", desc, pvalue);
+        }
+    }
+
+    if (print_count) {
+        snprintf(buf + strlen(buf), sizeof(buf), "%s", "\r\n");
+        lprintf(wtperf, 0, 0, "%s", buf);
+    }
+    
+    scan_end_check(ret == WT_NOTFOUND);
+}
+
+static void
+print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint32_t table_num)
+{
+    WT_CURSOR *cursor;
+    //char buf[512];
+
+    //snprintf(buf, 512, "statistics:%s", wtperf->uris[table_num]);
+    /*! [statistics table function] */
+    error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
+
+    print_cursor(cursor, wtperf);
+    error_check(cursor->reset(cursor));
+    error_check(cursor->close(cursor));
+
+    WT_UNUSED(table_num);
+    WT_UNUSED(wtperf);
+    /*! [statistics table function] */
+}
+
 static WT_THREAD_RET
 worker(void *arg)
 {
@@ -351,6 +439,7 @@ worker(void *arg)
     char *index_buf, *index_del_buf, *key_buf, *value, *value_buf;
     char buf[512];
     bool use_txn;
+    uint32_t table_num;
 
     thread = (WTPERF_THREAD *)arg;
     workload = thread->workload;
@@ -440,8 +529,8 @@ worker(void *arg)
     }
 
     while (!wtperf->stop) {
-        if (workload->pause != 0)
-            (void)sleep((unsigned int)workload->pause);
+        if (workload->pause != 0) 
+            (void)usleep((unsigned int)workload->pause);
         /*
          * Generate the next key and setup operation specific statistics tracking objects.
          */
@@ -485,12 +574,15 @@ worker(void *arg)
         generate_key(opts, key_buf, next_val);
         if (opts->index_like_table)
             generate_index_key(thread, false, index_buf, next_val);
-
-        if (workload->table_index == INT32_MAX)
+        
+        if (workload->table_index == INT32_MAX) {
             /*
              * Spread the data out around the multiple databases.
              */
-            cursor = cursors[map_key_to_table(wtperf->opts, next_val)];
+            table_num = map_key_to_table(wtperf->opts, next_val);
+            cursor = cursors[table_num];
+            print_file_stats(session, wtperf, table_num);
+        }
 
         /*
          * Skip the first time we do an operation, when trk->ops is 0, to avoid first time latency
@@ -501,6 +593,7 @@ worker(void *arg)
         start = __wt_clock(NULL);
 
         cursor->set_key(cursor, key_buf);
+        //printf("yang test ...................worker.., key_buf:%s\r\n", key_buf);
         switch (*op) {
         case WORKER_READ:
             /*

@@ -1267,6 +1267,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "checkpointing individual trees");
 
     time_start_ckpt_tree = __wt_clock(session);
+    printf("yang test ....__txn_checkpoint............1\r\n");
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
     time_stop_ckpt_tree = __wt_clock(session);
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
@@ -2341,6 +2342,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
     bool fake_ckpt, resolve_bm;
+    printf("yang test ....__checkpoint_tree............1\r\n");
 
     WT_UNUSED(cfg);
 
@@ -2524,6 +2526,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_TXN *txn;
     bool with_timestamp;
+    printf("yang test ....__checkpoint_tree_helper............1\r\n");
 
     btree = S2BT(session);
     txn = session->txn;

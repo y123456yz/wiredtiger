@@ -504,6 +504,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     bool ovfl_key;
+    uint64_t start_, start, stop1, stop2, stop3, stop4;
+    uint64_t time1, time2, time3;
+    time1 = time2 = time3 = 0;
+    start_ = __wt_clock(session);
 
     btree = S2BT(session);
 
@@ -519,6 +523,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        start = __wt_clock(session);
         WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
             /*
@@ -535,6 +540,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             WT_ERR(__wt_buf_set(session, r->cur, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, 0));
 
+            stop1 = __wt_clock(session);
+            time1 += WT_CLOCKDIFF_US(stop1, start);
             /*
              * Turn off prefix and suffix compression until a full key is written into the new page.
              */
@@ -580,6 +587,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             WT_ERR(__wt_illegal_value(session, upd->type));
         }
 
+        stop2 = __wt_clock(session);
+        time2 += WT_CLOCKDIFF_US(stop2, start);
+
         /*
          * When a tombstone without a timestamp is written to disk, remove any historical versions
          * that are greater in the history store for this key.
@@ -612,6 +622,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             }
 
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+            stop3 = __wt_clock(session);
+            time3 += WT_CLOCKDIFF_US(stop3, stop2);
         }
 
         /* Copy the key/value pair onto the page. */
@@ -628,8 +640,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
+
+
     }
 
+    stop4 = __wt_clock(session);
+    if (WT_CLOCKDIFF_US(stop4, start_) > 1010000 || time1 > 1100000 || time2 > 1000010 || time3 > 1100000)
+        printf("yang test .....__rec_row_leaf_insert......time1:%lu, time2:%lu, time3:%lu, time4:%lu\r\n",
+            time1, time2, time3, WT_CLOCKDIFF_US(stop4, start_));
 err:
     __wt_scr_free(session, &tmpkey);
     return (ret);
@@ -690,6 +708,8 @@ __wt_rec_row_leaf(
     bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
     const void *key_data;
+    uint64_t start, stop1, stop2, stop3, stop4;
+    start = __wt_clock(session);
 
     btree = S2BT(session);
     page = pageref->page;
@@ -705,13 +725,18 @@ __wt_rec_row_leaf(
     cbt->iface.session = (WT_SESSION *)session;
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
+    stop4 = __wt_clock(session);
 
     /*
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.
      */
-    if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL)
+    if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL) {
         WT_RET(__rec_row_leaf_insert(session, r, ins));
-
+    }
+    stop1 = __wt_clock(session);
+    if (WT_CLOCKDIFF_MS(stop1, stop4) > 1111 || WT_CLOCKDIFF_MS(stop4, start) > 1111)
+        printf("yang test .....__wt_rec_row_leaf.......stop1:%lu, %lu\r\n", 
+            WT_CLOCKDIFF_MS(stop1, stop4), WT_CLOCKDIFF_MS(stop4, start));
     /*
      * When we walk the page, we store each key we're building for the disk image in the last-key
      * buffer. There's trickiness because it's significantly faster to use a previously built key
@@ -1002,10 +1027,16 @@ leaf_insert:
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
     }
-
+    stop2 = __wt_clock(session);
     /* Write the remnant page. */
     ret = __wt_rec_split_finish(session, r);
+    stop3 = __wt_clock(session);
 
+    if (WT_CLOCKDIFF_MS(stop1, start) > 1112 || WT_CLOCKDIFF_MS(stop2, start) > 1112||
+        WT_CLOCKDIFF_MS(stop3, start) > 1112)
+        printf("yang test ..__wt_rec_row_leaf..stop4:%lu.stop1:%lu, stop2:%lu, stop3:%lu\r\n",
+            WT_CLOCKDIFF_MS(stop4, start),WT_CLOCKDIFF_MS(stop1, start), WT_CLOCKDIFF_MS(stop2, start), 
+            WT_CLOCKDIFF_MS(stop3, start));
 err:
     __wt_scr_free(session, &lastkey);
     __wt_scr_free(session, &tmpkey);

@@ -197,7 +197,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     clean_page = ebusy_only = false;
 
     __wt_verbose(
-      session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+      session, WT_VERB_EVICT, "page %p (%s), size:%d", (void *)page, 
+        __wt_page_type_string(page->type), (int)page->memory_footprint);
 
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)

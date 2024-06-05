@@ -267,12 +267,16 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_PAGE *page;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
+    uint64_t time_evict_start, time_evict_stop;
+    uint64_t time_read_disk_start, time_read_disk_stop;
+    uint64_t time_start, time_stop;
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
+    time_start = __wt_clock(session);
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -299,24 +303,34 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DELETED:
             /* Optionally limit reads to cache-only. */
-            if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
+            if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT)) {
+                ret = WT_NOTFOUND;
+                goto end;
+            }
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
-                return (WT_NOTFOUND);
+              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
+                ret = WT_NOTFOUND;
+                goto end;
+            }
             goto read;
         case WT_REF_DISK:
             /* Optionally limit reads to cache-only. */
-            if (LF_ISSET(WT_READ_CACHE))
-                return (WT_NOTFOUND);
+            if (LF_ISSET(WT_READ_CACHE)) {
+                ret = WT_NOTFOUND;
+                goto end;
+            };
 read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check for
              * space in the cache.
              */
+            time_read_disk_start = __wt_clock(session);
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
                 WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
+            time_read_disk_stop = __wt_clock(session);
+            WT_STAT_SESSION_INCRV(session, page_in_func_page_read_time,
+              WT_CLOCKDIFF_MS(time_read_disk_stop, time_read_disk_start));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
@@ -334,12 +348,16 @@ read:
               (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP));
             continue;
         case WT_REF_LOCKED:
-            if (LF_ISSET(WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
+            if (LF_ISSET(WT_READ_NO_WAIT)) {
+                ret = WT_NOTFOUND;
+                goto end;
+            }
 
             if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING)) {
-                if (LF_ISSET(WT_READ_CACHE))
-                    return (WT_NOTFOUND);
+                if (LF_ISSET(WT_READ_CACHE)) {
+                    ret = WT_NOTFOUND;
+                    goto end;
+                }
 
                 /* Waiting on another thread's read, stall. */
                 WT_STAT_CONN_INCR(session, page_read_blocked);
@@ -350,7 +368,9 @@ read:
             stalled = true;
             break;
         case WT_REF_SPLIT:
-            return (WT_RESTART);
+            ret = WT_RESTART;
+            goto end;
+            // return (WT_RESTART);
         case WT_REF_MEM:
             /*
              * The page is in memory.
@@ -405,7 +425,12 @@ read:
              */
             if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
+
+                time_evict_start = __wt_clock(session);
                 ret = __wt_page_release_evict(session, ref, 0);
+                time_evict_stop = __wt_clock(session);
+                WT_STAT_SESSION_INCRV(session, page_in_func_evict_page_sleep,
+                  WT_CLOCKDIFF_MS(time_evict_stop, time_evict_start));
                 /*
                  * If forced eviction succeeded, don't retry. If it failed, stall.
                  */
@@ -485,12 +510,14 @@ skip_evict:
              * done. If we set WT_READ_IGNORE_CACHE_SIZE because it was set in the session then make
              * sure we start a transaction.
              */
-            return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
+            ret = (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
                   !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
                 0 :
                 __wt_txn_autocommit_check(session));
+            goto end;
         default:
-            return (__wt_illegal_value(session, current_state));
+            ret = (__wt_illegal_value(session, current_state));
+            goto end;
         }
 
         /*
@@ -518,5 +545,17 @@ skip_evict:
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
+        if (current_state == WT_REF_LOCKED)
+            WT_STAT_SESSION_INCRV(session, page_in_func_ref_locked_page_sleep, sleep_usecs / 1000);
+        else if (current_state == WT_REF_MEM)
+            WT_STAT_SESSION_INCRV(session, page_in_func_ref_locked_page_sleep, sleep_usecs / 1000);
+        else
+            WT_STAT_SESSION_INCRV(session, page_in_func_other_page_sleep, sleep_usecs / 1000);
     }
+
+end:
+    time_stop = __wt_clock(session);
+
+    WT_STAT_SESSION_INCRV(session, page_in_func_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    return (ret);
 }

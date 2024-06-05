@@ -1382,12 +1382,26 @@ struct __wt_join_stats {
 struct __wt_session_stats {
     int64_t bytes_read;
     int64_t bytes_write;
+    int64_t cursor_read_ms;
+    int64_t cursor_write_ms;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
+    int64_t page_insert_wait_pagelock_time;
     int64_t read_time;
+    int64_t page_split_insert_time;
+    int64_t page_split_multi_time;
+    int64_t page_split_reverse_time;
+    int64_t page_split_rewrite_time;
     int64_t write_time;
+    int64_t page_in_func_evict_page_sleep;
+    int64_t page_in_func_other_page_sleep;
+    int64_t page_in_func_ref_locked_page_sleep;
+    int64_t page_in_func_time;
+    int64_t page_in_func_page_read_time;
     int64_t lock_schema_wait;
     int64_t cache_time;
+    int64_t wt_reconcile_page_lock_time;
+    int64_t wt_reconcile_time;
 };
 
 /* Statistics section: END */

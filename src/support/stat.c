@@ -3647,12 +3647,26 @@ __wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to)
 static const char *const __stats_session_desc[] = {
   "session: bytes read into cache",
   "session: bytes written from cache",
+  "session: cursor read ms",
+  "session: cursor write ms",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
+  "session: page insert wait pagelock time ms",
   "session: page read from disk to cache time (usecs)",
+  "session: page split insert time ms",
+  "session: page split multi time ms",
+  "session: page split reverse time ms",
+  "session: page split rewrite time ms",
   "session: page write from cache to disk time (usecs)",
+  "session: page_in_func evict page sleep ms",
+  "session: page_in_func other page sleep ms",
+  "session: page_in_func ref locked page sleep ms",
+  "session: page_in_func time ms",
+  "session: page_in_func_page read time  ms",
   "session: schema lock wait time (usecs)",
   "session: time waiting for cache (usecs)",
+  "session: wt_reconcile page lock time ms",
+  "session: wt_reconcile time ms",
 };
 
 int
@@ -3674,10 +3688,24 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
 {
     stats->bytes_read = 0;
     stats->bytes_write = 0;
+    stats->cursor_read_ms = 0;
+    stats->cursor_write_ms = 0;
     stats->lock_dhandle_wait = 0;
     stats->txn_bytes_dirty = 0;
+    stats->page_insert_wait_pagelock_time = 0;
     stats->read_time = 0;
+    stats->page_split_insert_time = 0;
+    stats->page_split_multi_time = 0;
+    stats->page_split_reverse_time = 0;
+    stats->page_split_rewrite_time = 0;
     stats->write_time = 0;
+    stats->page_in_func_evict_page_sleep = 0;
+    stats->page_in_func_other_page_sleep = 0;
+    stats->page_in_func_ref_locked_page_sleep = 0;
+    stats->page_in_func_time = 0;
+    stats->page_in_func_page_read_time = 0;
     stats->lock_schema_wait = 0;
     stats->cache_time = 0;
+    stats->wt_reconcile_page_lock_time = 0;
+    stats->wt_reconcile_time = 0;
 }
