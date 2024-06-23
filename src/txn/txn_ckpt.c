@@ -2342,7 +2342,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
     bool fake_ckpt, resolve_bm;
-    printf("yang test ....__checkpoint_tree............1\r\n");
+    //printf("yang test ....__checkpoint_tree............1\r\n");
+    __wt_verbose_warning(
+      session, WT_VERB_COMPACT, "yang test....begin....__checkpoint_tree%s", "");
 
     WT_UNUSED(cfg);
 
@@ -2465,6 +2467,9 @@ fake:
     /* Tell logging that the checkpoint is complete. */
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
         WT_ERR(__wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL));
+
+    __wt_verbose_warning(
+      session, WT_VERB_COMPACT, "yang test....end....__checkpoint_tree%s", "");
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */

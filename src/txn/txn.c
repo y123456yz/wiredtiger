@@ -1719,6 +1719,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     uint8_t previous_state;
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    uint64_t time_start, time_stop, time_stop2;;
+    time_start = __wt_clock(session);
+    time_stop2 = 0;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1832,6 +1835,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_readlock(session, &txn_global->visibility_rwlock);
         locked = true;
         WT_ERR(__wt_txn_log_commit(session, cfg));
+        time_stop2 = __wt_clock(session);
     }
 
     /* Process updates. */
@@ -2038,7 +2042,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
-
+    time_stop = __wt_clock(session);
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 5)
+        __wt_verbose_warning(
+           (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test txn_commit...commit log:%lu...total:%lu", 
+            WT_CLOCKDIFF_MS(time_stop2, time_start), WT_CLOCKDIFF_MS(time_stop, time_start));
     return (0);
 
 err:

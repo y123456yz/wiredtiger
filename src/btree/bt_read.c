@@ -270,6 +270,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t time_evict_start, time_evict_stop;
     uint64_t time_read_disk_start, time_read_disk_stop;
     uint64_t time_start, time_stop;
+    uint64_t time_start_sleep, time_stop_sleep, total_sleep_time;
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
@@ -277,6 +278,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     btree = S2BT(session);
     txn = session->txn;
     time_start = __wt_clock(session);
+    total_sleep_time = 0;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -524,6 +526,7 @@ skip_evict:
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
          */
+        time_start_sleep = __wt_clock(session);
         if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
                 ++yield_cnt;
@@ -547,15 +550,19 @@ skip_evict:
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
         if (current_state == WT_REF_LOCKED)
             WT_STAT_SESSION_INCRV(session, page_in_func_ref_locked_page_sleep, sleep_usecs / 1000);
-        else if (current_state == WT_REF_MEM)
-            WT_STAT_SESSION_INCRV(session, page_in_func_ref_locked_page_sleep, sleep_usecs / 1000);
-        else
-            WT_STAT_SESSION_INCRV(session, page_in_func_other_page_sleep, sleep_usecs / 1000);
+        //else if (current_state == WT_REF_MEM)
+        //    WT_STAT_SESSION_INCRV(session, page_in_func_ref_locked_page_sleep, sleep_usecs / 1000);
+        //else
+        //    WT_STAT_SESSION_INCRV(session, page_in_func_other_page_sleep, sleep_usecs / 1000);
+
+        time_stop_sleep = __wt_clock(session);
+        total_sleep_time += WT_CLOCKDIFF_US(time_stop_sleep, time_start_sleep);
     }
 
 end:
     time_stop = __wt_clock(session);
 
+    WT_STAT_SESSION_INCRV(session, page_in_func_other_page_sleep, total_sleep_time / 1000);
     WT_STAT_SESSION_INCRV(session, page_in_func_time, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }

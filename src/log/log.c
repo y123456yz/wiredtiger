@@ -2506,6 +2506,9 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
     size_t dst_len, len, new_size, result_len, src_len;
     uint8_t *dst, *src;
     int compression_failed;
+    uint64_t time_start, time_stop;
+
+    time_start = __wt_clock(session);
 
     conn = S2C(session);
     log = conn->log;
@@ -2593,6 +2596,10 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
         WT_ASSERT(session, new_size < UINT32_MAX && ip->size < UINT32_MAX);
     }
     ret = __log_write_internal(session, ip, lsnp, flags);
+    time_stop = __wt_clock(session);
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 5)
+        __wt_verbose_warning(
+           (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test...__wt_log_write..... :%lu", WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     __wt_scr_free(session, &citem);

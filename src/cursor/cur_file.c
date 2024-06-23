@@ -398,22 +398,22 @@ __curfile_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
-
+    
+    
+    time_start = 0;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
+    
+    time_start = __wt_clock(session);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
         WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
 
-    time_start = __wt_clock(session);
+    
     WT_ERR(__wt_btcur_insert(cbt));
-    //__wt_sleep(0, 100000);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    //printf("yang test ..........__curfile_insert......:%lu\r\n", WT_CLOCKDIFF_MS(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_write_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     /*
      * Insert maintains no position, key or value (except for column-store appends, where we are
@@ -428,6 +428,12 @@ __curfile_insert(WT_CURSOR *cursor)
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert);
+    //wt__wt_sleep(0, 50000);
+    time_stop = __wt_clock(session);
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 10)
+        __wt_verbose_warning(
+           (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test...__curfile_insert..... :%lu", WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 

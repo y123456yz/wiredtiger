@@ -330,39 +330,29 @@ pre_load_data(WTPERF *wtperf)
 }
 
 static void
-print_cursor(WT_CURSOR *cursor, WTPERF *wtperf)
+print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
 {
     const char *desc, *pvalue;
-    int64_t value;
+    int64_t value, total_write_ms;
     int ret;
     bool print_count = false;
     char buf[1024];
 
+    total_write_ms = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &desc, &pvalue, &value));
-        // if (value == 0) {
-        /*if (strcmp(desc, "cursor write ms") == 0 || strcmp(desc, "cursor read ms") == 0 ||
-          strcmp(desc, "page_in_func ref locked page sleep ms") == 0 ||
-          strcmp(desc, "page_in_func evict page sleep ms") == 0 ||
-          strcmp(desc, "page_in_func other page sleep ms") == 0 ||
-          strcmp(desc, "page_in_func_page read time  ms") == 0 ||
-          strcmp(desc, "page_in_func time ms") == 0 || strcmp(desc, "wt_reconcile time ms") == 0 ||
+        if (value > 0) {
+            //只打印总时间超过10秒的
+            if (strcmp(desc, "session: cursor write ms") == 0) {
+                total_write_ms = value;
+                printf("yang test ...print_cursor..write ms:%d\r\n", (int)value);
+            }
+            
+            if (value < 0)
+                continue;
 
-          strcmp(desc, "wt_reconcile page lock time ms") == 0 ||
-          strcmp(desc, "page split insert time ms") == 0 ||
-          strcmp(desc, "page split multi time ms") == 0 ||
-          strcmp(desc, "wt_reconcile time ms") == 0 ||
-          strcmp(desc, "page split reverse time ms") == 0 ||
-          strcmp(desc, "page split rewrite time ms") == 0 ||
-          strcmp(desc, "page insert wait pagelock time ms") == 0) {
-
-            print_count = true;
-            printf("%s=%s, ", desc, pvalue);
-        }*/
-        if (value >= 0) {
-            if (strcmp(desc, "session: cursor write ms") == 0 && value < 20)
-                return;
-            if (strcmp(desc, "session: cursor read ms") == 0 && value < 20)
+                
+            /*if (strcmp(desc, "session: cursor read ms") == 0 && value < 10)
                 return;
             
            // if (strcmp(desc, "session: wt_reconcile time ms") == 0 && value <= 5)
@@ -374,9 +364,9 @@ print_cursor(WT_CURSOR *cursor, WTPERF *wtperf)
                 continue;
             if (strcmp(desc, "session: time waiting for cache (usecs)") == 0 && value < 10000)
                 continue;
-            
+            */
 
-            if (strcmp(desc, "session: dirty bytes in this txn") == 0 && value < 102400)
+            if (strcmp(desc, "session: dirty bytes in this txn") == 0) // == 0 && value < 102400)
                 continue;
             if (strcmp(desc, "session: bytes read into cache") == 0 && value < 102400)
                 continue;
@@ -386,29 +376,36 @@ print_cursor(WT_CURSOR *cursor, WTPERF *wtperf)
 
             snprintf(buf + strlen(buf), sizeof(buf), "%s=[%s], ", desc, pvalue);
             print_count = true;
-            //printf("%s=%s, ", desc, pvalue);
+
+           // printf("%s=%s, ", desc, pvalue);
         }
     }
 
-    if (print_count) {
+    if (print_count && total_write_ms >= 10) {
         snprintf(buf + strlen(buf), sizeof(buf), "%s", "\r\n");
-        lprintf(wtperf, 0, 0, "%s", buf);
+        //lprintf(wtperf, 0, 0, "%s", buf);
+        WT_UNUSED(wtperf);
+        __wt_verbose_warning(
+           (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test...total..... :%s", buf);
     }
     
     scan_end_check(ret == WT_NOTFOUND);
 }
 
 static void
-print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint32_t table_num)
+print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint32_t table_num, uint64_t time)
 {
     WT_CURSOR *cursor;
     //char buf[512];
 
     //snprintf(buf, 512, "statistics:%s", wtperf->uris[table_num]);
     /*! [statistics table function] */
+    if (time >= 10)
+        printf("yang test ............... wt run time:%lu\r\n", time);
     error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
 
-    print_cursor(cursor, wtperf);
+    if (time >= 10)
+        print_cursor(session, cursor, wtperf);
     error_check(cursor->reset(cursor));
     error_check(cursor->close(cursor));
 
@@ -440,6 +437,8 @@ worker(void *arg)
     char buf[512];
     bool use_txn;
     uint32_t table_num;
+    uint64_t time_start, time_stop;
+    table_num = 0;
 
     thread = (WTPERF_THREAD *)arg;
     workload = thread->workload;
@@ -534,6 +533,7 @@ worker(void *arg)
         /*
          * Generate the next key and setup operation specific statistics tracking objects.
          */
+        
         switch (*op) {
         case WORKER_INSERT:
         case WORKER_INSERT_RMW:
@@ -581,7 +581,7 @@ worker(void *arg)
              */
             table_num = map_key_to_table(wtperf->opts, next_val);
             cursor = cursors[table_num];
-            print_file_stats(session, wtperf, table_num);
+            
         }
 
         /*
@@ -629,8 +629,18 @@ worker(void *arg)
             if (opts->random_value)
                 randomize_value(thread, value_buf, 0);
             cursor->set_value(cursor, value_buf);
-            if ((ret = cursor->insert(cursor)) == 0)
+            time_start = __wt_clock((WT_SESSION_IMPL *)session); 
+            //printf("yang test ..........insert xxxxxxxxx..... wt run time");
+            if ((ret = cursor->insert(cursor)) == 0) {
+                time_stop = __wt_clock((WT_SESSION_IMPL *)session); 
+                WT_UNUSED(time_stop);
+                WT_UNUSED(time_start);
+                //if (WT_CLOCKDIFF_MS(time_stop, time_start) > 10) {
+                  //  printf("yang test ............... wt run time:%lu\r\n", WT_CLOCKDIFF_MS(time_stop, time_start));
+                    print_file_stats(session, wtperf, table_num, WT_CLOCKDIFF_MS(time_stop, time_start));
+                //}
                 break;
+            }
             goto op_err;
         case WORKER_TRUNCATE:
             if ((ret = run_truncate(wtperf, thread, cursor, session, &truncated)) == 0) {
@@ -767,7 +777,6 @@ worker(void *arg)
              */
             if (ret == WT_NOTFOUND)
                 break;
-
 op_err:
             if (ret == WT_ROLLBACK && use_txn) {
                 /*
@@ -895,6 +904,10 @@ op_err:
          */
         if (--thread->throttle_cfg.ops_count == 0)
             worker_throttle(thread);
+
+
+
+        //exit(0);//yang add change
     }
 
     if ((ret = session->close(session, NULL)) != 0) {

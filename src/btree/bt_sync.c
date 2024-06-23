@@ -134,8 +134,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
-    static int g_sync_file_count = 0;
-    printf("yang test ....__wt_sync_file............1\r\n");
+    //static int g_sync_file_count = 0;
+    //printf("yang test ....__wt_sync_file............1\r\n");
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -239,11 +239,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_RUNNING);
         is_hs = WT_IS_HS(btree->dhandle);
 
-        ++g_sync_file_count;
-        printf("yang test ....__wt_sync_file............begin\r\n");
-        if (g_sync_file_count > 2)
-            __wt_sleep(20,0);//yang add change 
-        printf("yang test ....__wt_sync_file............end\r\n");
+        //++g_sync_file_count;
+       // printf("yang test ....__wt_sync_file............begin\r\n");
+        //if (g_sync_file_count > 2)
+        //    __wt_sleep(20,0);//yang add change 
+        //printf("yang test ....__wt_sync_file............end\r\n");
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
         if (!is_hs && !WT_IS_METADATA(btree->dhandle))

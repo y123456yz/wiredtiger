@@ -81,7 +81,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      */
     WT_PAGE_LOCK(session, page);
     page_locked = true;
-    time_stop2 = __wt_clock(session);
+    time_stop2 = __wt_clock(session); 
     WT_STAT_SESSION_INCRV(
       session, wt_reconcile_page_lock_time, WT_CLOCKDIFF_MS(time_stop2, time_start));
     if (WT_CLOCKDIFF_MS(time_stop2, time_start) > 1)
@@ -107,9 +107,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     time_stop = __wt_clock(session);
     WT_STAT_SESSION_INCRV(session, wt_reconcile_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
-    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 100)
-        WT_RET(__wt_msg(session, "yang test ...page size:%d.....__wt_reconcile..... reconcile:%lu ms", 
-            (int)page->memory_footprint, WT_CLOCKDIFF_MS(time_stop, time_start)));
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 15)
+        __wt_verbose_warning(
+           session, WT_VERB_COMPACT, "yang test...__wt_reconcile..... size:%d, time:%lu ms", 
+           (int)page->memory_footprint, WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     if (page_locked)

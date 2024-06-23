@@ -285,10 +285,13 @@ __curstat_reset(WT_CURSOR *cursor)
     cst->notinitialized = cst->notpositioned = true;
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
+    //printf("yang test ......__curstat_reset.......... 11111111111\r\n");
     /* Reset the session statistics to zero. */
-    if (strcmp(cursor->uri, "statistics:session") == 0)
+    if (strcmp(cursor->uri, "statistics:session") == 0) {
+       // printf("yang test ......__curstat_reset.......... 222222222\r\n");
         __wt_stat_session_clear_single(&session->stats);
-
+    }
+    
 err:
     API_END_RET(session, ret);
 }
