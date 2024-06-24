@@ -270,7 +270,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t time_evict_start, time_evict_stop;
     uint64_t time_read_disk_start, time_read_disk_stop;
     uint64_t time_start, time_stop;
-    uint64_t time_start_sleep, time_stop_sleep, total_sleep_time;
+    uint64_t  total_sleep_time,time_start_sleep, time_stop_sleep;
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
@@ -526,7 +526,7 @@ skip_evict:
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
          */
-        time_start_sleep = __wt_clock(session);
+        
         if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
                 ++yield_cnt;
@@ -546,6 +546,7 @@ skip_evict:
             if (cache_work)
                 continue;
         }
+        time_start_sleep = __wt_clock(session);
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
         if (current_state == WT_REF_LOCKED)

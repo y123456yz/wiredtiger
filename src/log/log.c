@@ -2597,7 +2597,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
     }
     ret = __log_write_internal(session, ip, lsnp, flags);
     time_stop = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 5)
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 10)
         __wt_verbose_warning(
            (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test...__wt_log_write..... :%lu", WT_CLOCKDIFF_MS(time_stop, time_start));
 
