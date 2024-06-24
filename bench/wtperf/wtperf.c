@@ -393,7 +393,7 @@ print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
 }
 
 static void
-print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint32_t table_num, uint64_t time)
+print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint64_t time)
 {
     WT_CURSOR *cursor;
     //char buf[512];
@@ -409,7 +409,6 @@ print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint32_t table_num, uint64
     error_check(cursor->reset(cursor));
     error_check(cursor->close(cursor));
 
-    WT_UNUSED(table_num);
     WT_UNUSED(wtperf);
     /*! [statistics table function] */
 }
@@ -533,6 +532,7 @@ worker(void *arg)
         /*
          * Generate the next key and setup operation specific statistics tracking objects.
          */
+        printf("yang test ..........1.........worker.., op:%d, opts->random_range:%u\r\n", *op, opts->random_range);
         
         switch (*op) {
         case WORKER_INSERT:
@@ -549,6 +549,7 @@ worker(void *arg)
         case WORKER_READ:
             if (*op == WORKER_READ)
                 trk = &thread->read;
+           // break;//yang add todo xxxxxxxxxxxxxxx  threads=((count=2,inserts=50,reads=50,updates=0,pause=0))
         /* FALLTHROUGH */
         case WORKER_UPDATE:
             if (*op == WORKER_UPDATE)
@@ -592,8 +593,9 @@ worker(void *arg)
           (trk->ops % opts->sample_rate == 0);
         start = __wt_clock(NULL);
 
+        time_start = __wt_clock((WT_SESSION_IMPL *)session); 
+        
         cursor->set_key(cursor, key_buf);
-        //printf("yang test ...................worker.., key_buf:%s\r\n", key_buf);
         switch (*op) {
         case WORKER_READ:
             /*
@@ -629,15 +631,15 @@ worker(void *arg)
             if (opts->random_value)
                 randomize_value(thread, value_buf, 0);
             cursor->set_value(cursor, value_buf);
-            time_start = __wt_clock((WT_SESSION_IMPL *)session); 
+            //time_start = __wt_clock((WT_SESSION_IMPL *)session); 
             //printf("yang test ..........insert xxxxxxxxx..... wt run time");
             if ((ret = cursor->insert(cursor)) == 0) {
-                time_stop = __wt_clock((WT_SESSION_IMPL *)session); 
-                WT_UNUSED(time_stop);
-                WT_UNUSED(time_start);
+                //time_stop = __wt_clock((WT_SESSION_IMPL *)session); 
+                //WT_UNUSED(time_stop);
+                //WT_UNUSED(time_start);
                 //if (WT_CLOCKDIFF_MS(time_stop, time_start) > 10) {
                   //  printf("yang test ............... wt run time:%lu\r\n", WT_CLOCKDIFF_MS(time_stop, time_start));
-                    print_file_stats(session, wtperf, table_num, WT_CLOCKDIFF_MS(time_stop, time_start));
+                //    print_file_stats(session, wtperf, WT_CLOCKDIFF_MS(time_stop, time_start));
                 //}
                 break;
             }
@@ -802,6 +804,8 @@ op_err:
             goto err; /* can't happen */
         }
 
+        time_stop = __wt_clock((WT_SESSION_IMPL *)session); 
+        print_file_stats(session, wtperf, WT_CLOCKDIFF_MS(time_stop, time_start));
         /*
          * For now the index_like_table does not contain actual value from a main table. A truncate
          * could imply a lot of deletions from an index but we don't want to do that here. Don't
@@ -3158,7 +3162,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     end_range = wtperf_value_range(wtperf);
     start_range = opts->scan_icount;
     range = end_range - start_range;
-
+    printf("yang test ......wtperf_rand.......range:%lu\r\n", range);
     /*
      * If we have a random cursor set up then use it.
      */
