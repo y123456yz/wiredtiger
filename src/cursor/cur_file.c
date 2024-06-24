@@ -194,13 +194,14 @@ __curfile_next(WT_CURSOR *cursor)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_next);
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
+
 }
 
 /*
@@ -230,12 +231,13 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     API_END_RET_STAT(session, ret, cursor_next_random);
 
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
+
 }
 
 /*
@@ -268,14 +270,13 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     API_RETRYABLE_END(session, ret);
     CURSOR_REPOSITION_END(cursor, session);
     API_END_RET_STAT(session, ret, cursor_prev);
-    
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -342,16 +343,15 @@ __curfile_search(WT_CURSOR *cursor)
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
-err:
-    CURSOR_REPOSITION_END(cursor, session);
-    API_RETRYABLE_END(session, ret);
-    API_END_RET_STAT(session, ret, cursor_search);
-    
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
+err:
+    CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
+    API_END_RET_STAT(session, ret, cursor_search);
 }
 
 /*
@@ -383,15 +383,16 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     WT_ASSERT(session,
       F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+
+    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_search_near);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
-    WT_STAT_SESSION_INCRV(session, cursor_read_ms, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -437,7 +438,7 @@ err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert);
     //wt__wt_sleep(0, 50000);
     time_stop = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 10)
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 30)
         __wt_verbose_warning(
            (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test...__curfile_insert..... :%lu", WT_CLOCKDIFF_MS(time_stop, time_start));
     WT_STAT_SESSION_INCRV(session, cursor_write_ms, WT_CLOCKDIFF_MS(time_stop, time_start));

@@ -2043,7 +2043,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
     time_stop = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 5)
+    if (WT_CLOCKDIFF_MS(time_stop, time_start) > 25)
         __wt_verbose_warning(
            (WT_SESSION_IMPL *)session, WT_VERB_COMPACT, "yang test txn_commit...commit log:%lu...total:%lu", 
             WT_CLOCKDIFF_MS(time_stop2, time_start), WT_CLOCKDIFF_MS(time_stop, time_start));

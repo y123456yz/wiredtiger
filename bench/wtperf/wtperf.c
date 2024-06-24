@@ -345,7 +345,12 @@ print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
             //只打印总时间超过10秒的
             if (strcmp(desc, "session: cursor write ms") == 0) {
                 total_write_ms = value;
-                printf("yang test ...print_cursor..write ms:%d\r\n", (int)value);
+                //printf("yang test ...print_cursor..write ms:%d\r\n", (int)value);
+            }
+
+            if (strcmp(desc, "session: cursor read ms") == 0) {
+                total_write_ms = value;
+                printf("yang test ...print_cursor..read ms:%d\r\n", (int)value);
             }
             
             if (value < 0)
@@ -400,8 +405,8 @@ print_file_stats(WT_SESSION *session, WTPERF *wtperf, uint64_t time)
 
     //snprintf(buf, 512, "statistics:%s", wtperf->uris[table_num]);
     /*! [statistics table function] */
-    if (time >= 10)
-        printf("yang test ............... wt run time:%lu\r\n", time);
+   // if (time >= 10)
+   //     printf("yang test ............... wt run time:%lu\r\n", time);
     error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
 
     if (time >= 10)
@@ -532,7 +537,7 @@ worker(void *arg)
         /*
          * Generate the next key and setup operation specific statistics tracking objects.
          */
-        printf("yang test ..........1.........worker.., op:%d, opts->random_range:%u\r\n", *op, opts->random_range);
+       // printf("yang test ..........1.........worker.., op:%d, opts->random_range:%u\r\n", *op, opts->random_range);
         
         switch (*op) {
         case WORKER_INSERT:
@@ -3162,7 +3167,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     end_range = wtperf_value_range(wtperf);
     start_range = opts->scan_icount;
     range = end_range - start_range;
-    printf("yang test ......wtperf_rand.......range:%lu\r\n", range);
+    //printf("yang test ......wtperf_rand.......range:%lu\r\n", range);
     /*
      * If we have a random cursor set up then use it.
      */
