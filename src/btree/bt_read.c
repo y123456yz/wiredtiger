@@ -565,5 +565,7 @@ end:
 
     WT_STAT_SESSION_INCRV(session, page_in_func_other_page_sleep, total_sleep_time / 1000);
     WT_STAT_SESSION_INCRV(session, page_in_func_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    if(WT_CLOCKDIFF_MS(time_stop, time_start) >= 5)
+        printf("yang test 111111111111111111 in func time:%lu\r\n", WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }

@@ -333,12 +333,12 @@ static void
 print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
 {
     const char *desc, *pvalue;
-    int64_t value, total_write_ms;
+    int64_t value, total_write_ms, total_read_ms;
     int ret;
     bool print_count = false;
     char buf[1024];
 
-    total_write_ms = 0;
+    total_write_ms = total_read_ms = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &desc, &pvalue, &value));
         if (value > 0) {
@@ -349,9 +349,11 @@ print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
             }
 
             if (strcmp(desc, "session: cursor read ms") == 0) {
-                total_write_ms = value;
+                total_read_ms = value;
                 printf("yang test ...print_cursor..read ms:%d\r\n", (int)value);
             }
+
+            
             
             if (value < 0)
                 continue;
@@ -381,12 +383,12 @@ print_cursor(WT_SESSION *session, WT_CURSOR *cursor, WTPERF *wtperf)
 
             snprintf(buf + strlen(buf), sizeof(buf), "%s=[%s], ", desc, pvalue);
             print_count = true;
-
-           // printf("%s=%s, ", desc, pvalue);
+            if(total_write_ms >= 10 || total_read_ms >= 10)
+                printf("%s=%s, ", desc, pvalue);
         }
     }
 
-    if (print_count && total_write_ms >= 10) {
+    if (print_count && (total_write_ms >= 10 || total_read_ms >= 10)) {
         snprintf(buf + strlen(buf), sizeof(buf), "%s", "\r\n");
         //lprintf(wtperf, 0, 0, "%s", buf);
         WT_UNUSED(wtperf);
