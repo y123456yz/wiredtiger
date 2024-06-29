@@ -1594,7 +1594,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: overflow pages read into cache",
   "cache: page evict attempts by application threads",
   "cache: page evict failures by application threads",
-  "cache: page insert wait pagelock time (msecs)",
   "cache: page split during eviction deepened the tree",
   "cache: page split insert time (msecs)",
   "cache: page split multi time (msecs)",
@@ -2353,7 +2352,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_overflow = 0;
     stats->cache_eviction_app_attempt = 0;
     stats->cache_eviction_app_fail = 0;
-    /* not clearing cache_page_insert_wait_pagelock_time */
     stats->cache_eviction_deepen = 0;
     /* not clearing cache_page_split_insert_time */
     /* not clearing cache_page_split_multi_time */
@@ -3133,8 +3131,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_overflow += WT_STAT_CONN_READ(from, cache_read_overflow);
     to->cache_eviction_app_attempt += WT_STAT_CONN_READ(from, cache_eviction_app_attempt);
     to->cache_eviction_app_fail += WT_STAT_CONN_READ(from, cache_eviction_app_fail);
-    to->cache_page_insert_wait_pagelock_time +=
-      WT_STAT_CONN_READ(from, cache_page_insert_wait_pagelock_time);
     to->cache_eviction_deepen += WT_STAT_CONN_READ(from, cache_eviction_deepen);
     to->cache_page_split_insert_time += WT_STAT_CONN_READ(from, cache_page_split_insert_time);
     to->cache_page_split_multi_time += WT_STAT_CONN_READ(from, cache_page_split_multi_time);
@@ -3763,6 +3759,7 @@ __wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to)
 }
 
 static const char *const __stats_session_desc[] = {
+  "session: btree page lock wait time (usecs)",
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: cursor read time (usecs)",
@@ -3770,7 +3767,6 @@ static const char *const __stats_session_desc[] = {
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
   "session: log write time (usecs)",
-  "session: page insert wait pagelock time (usecs)",
   "session: page read from disk to cache time (usecs)",
   "session: page read time (usecs)",
   "session: page split insert time (usecs)",
@@ -3801,6 +3797,7 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 void
 __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
 {
+    stats->lock_btree_page_wait = 0;
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->cursor_read_time = 0;
@@ -3808,7 +3805,6 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->lock_dhandle_wait = 0;
     stats->txn_bytes_dirty = 0;
     stats->log_write_time = 0;
-    stats->page_insert_wait_pagelock_time = 0;
     stats->read_time = 0;
     stats->page_read_time = 0;
     stats->page_split_insert_time = 0;

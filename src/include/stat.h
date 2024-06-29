@@ -613,7 +613,6 @@ struct __wt_connection_stats {
     int64_t cache_read_overflow;
     int64_t cache_eviction_app_attempt;
     int64_t cache_eviction_app_fail;
-    int64_t cache_page_insert_wait_pagelock_time;
     int64_t cache_eviction_deepen;
     int64_t cache_page_split_insert_time;
     int64_t cache_page_split_multi_time;
@@ -1447,6 +1446,7 @@ struct __wt_join_stats {
  */
 #define WT_SESSION_STATS_BASE 4000
 struct __wt_session_stats {
+    int64_t lock_btree_page_wait;
     int64_t bytes_read;
     int64_t bytes_write;
     int64_t cursor_read_time;
@@ -1454,7 +1454,6 @@ struct __wt_session_stats {
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
     int64_t log_write_time;
-    int64_t page_insert_wait_pagelock_time;
     int64_t read_time;
     int64_t page_read_time;
     int64_t page_split_insert_time;

@@ -525,6 +525,7 @@ skip_evict:
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         time_stop = __wt_clock(session);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
-        WT_STAT_SESSION_INCRV(session, ref_locked_and_yield_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_SESSION_INCRV(
+          session, ref_locked_and_yield_time, WT_CLOCKDIFF_US(time_stop, time_start));
     }
 }

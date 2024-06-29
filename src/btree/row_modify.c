@@ -21,7 +21,7 @@ __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_RET(__wt_calloc_one(session, &modify));
 
     /* Initialize the spinlock for the page. */
-    WT_SPIN_INIT_TRACKED(session, &modify->page_lock, btree_page);
+    WT_SPIN_INIT_SESSION_TRACKED(session, &modify->page_lock, btree_page);
 
     /*
      * Multiple threads of control may be searching and deciding to modify a page. If our modify
