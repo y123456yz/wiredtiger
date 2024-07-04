@@ -38,7 +38,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         return (0);
 
     /* Make sure the oldest transaction ID is up-to-date. */
-    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __wt_evict_file");
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__wt_evict_file"));
 
     /* Walk the tree, discarding pages. */
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;

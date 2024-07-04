@@ -308,7 +308,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         obsolete_timestamp = page->modify->obsolete_check_timestamp;
         if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
             /* Try to move the oldest ID forward and re-check. */
-            ret = __wt_txn_update_oldest(session, 0);
+            //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __wt_update_serial");
+            ret = __wt_txn_update_oldest(session, 0, "__wt_update_serial");
             /*
              * We cannot proceed if we fail here as we have inserted the updates to the update
              * chain. Panic instead. Currently, we don't ever return any error from

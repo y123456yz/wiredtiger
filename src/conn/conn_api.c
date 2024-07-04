@@ -1339,7 +1339,7 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 
     WT_ERR(__wt_config_gets(session, cfg, "txn", &cval));
     if (cval.val != 0)
-        WT_ERR(__wt_verbose_dump_txn(session));
+        WT_ERR(__wt_verbose_dump_txn(session, "__conn_debug_info"));
 err:
     API_END_RET(session, ret);
 }
@@ -1436,6 +1436,7 @@ err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_set_timestamp(session, config, ret));
 #endif
+    
     API_END_RET(session, ret);
 }
 

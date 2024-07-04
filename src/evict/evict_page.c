@@ -733,9 +733,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         /*
          * Update the oldest ID to avoid wasted effort should it have fallen behind current.
          */
-        if (modified)
-            WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
-
+        if (modified) {
+            //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __evict_review");
+            WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT, "__evict_review"));
+        }
         if (!__wt_page_can_evict(session, ref, inmem_splitp))
             return (__wt_set_return(session, EBUSY));
 

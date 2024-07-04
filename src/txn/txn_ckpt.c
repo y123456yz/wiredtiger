@@ -1183,7 +1183,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * This is particularly important for compact, so that all dirty pages can be fully written.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_UPDATE_OLDEST);
-    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __wt_txn_activity_check");
+    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__wt_txn_activity_check"));
 
     /* Flush data-sources before we start the checkpoint. */
     WT_ERR(__checkpoint_data_source(session, cfg));

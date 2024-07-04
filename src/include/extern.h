@@ -1303,7 +1303,7 @@ extern int __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
+extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags, const char* func)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_unexpected_object_type(
   WT_SESSION_IMPL *session, const char *uri, const char *expect) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
@@ -1324,10 +1324,10 @@ extern int __wt_verbose_dump_log(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
+extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session, const char* func)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session,
-  int error_code, const char *error_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  int error_code, const char *error_string, WT_ITEM *txn_one_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)

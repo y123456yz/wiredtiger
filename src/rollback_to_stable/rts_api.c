@@ -68,7 +68,7 @@ __rts_check(WT_SESSION_IMPL *session)
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
     if (cookie.ret_txn_active) {
         ret = EBUSY;
-        WT_TRET(__wt_verbose_dump_txn(session));
+        WT_TRET(__wt_verbose_dump_txn(session, "__rts_check"));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
     }
     return (0);
@@ -129,7 +129,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * As part of the below function call, the oldest transaction id and pinned timestamps are
      * updated.
      */
-    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __rollback_to_stable_int");
+    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__rollback_to_stable_int"));
 
     WT_ASSERT_ALWAYS(session,
       (txn_global->has_pinned_timestamp ||

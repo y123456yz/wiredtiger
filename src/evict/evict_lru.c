@@ -496,12 +496,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         if (time_diff_ms >= cache->cache_stuck_timeout_ms) {
 #ifdef HAVE_DIAGNOSTIC
             __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
-            WT_RET(__wt_verbose_dump_txn(session));
+            WT_RET(__wt_verbose_dump_txn(session, "__evict_server"));
             WT_RET(__wt_verbose_dump_cache(session));
             return (__wt_set_return(session, ETIMEDOUT));
 #else
             if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
-                WT_RET(__wt_verbose_dump_txn(session));
+                WT_RET(__wt_verbose_dump_txn(session, "__evict_server"));
                 WT_RET(__wt_verbose_dump_cache(session));
 
                 /* Reset the timer. */
@@ -530,7 +530,8 @@ __wt_evict_create(WT_SESSION_IMPL *session)
      * prevent eviction threads from pinning anything as they start up and read metadata in order to
      * open cursors.
      */
-    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __wt_evict_create");
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__wt_evict_create"));
 
     WT_ASSERT(session, conn->evict_threads_min > 0);
     /* Set first, the thread might run before we finish up. */
@@ -752,7 +753,8 @@ __evict_pass(WT_SESSION_IMPL *session)
          * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
          * highly threaded workloads, that creates a bottleneck.
          */
-        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
+        //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __evict_pass");
+        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT, "__evict_pass"));
 
         if (!__evict_update_work(session))
             break;

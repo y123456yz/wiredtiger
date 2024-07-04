@@ -69,8 +69,8 @@ static char home[1024]; /* Program working dir */
  */
 
 #define INVALID_KEY UINT64_MAX
-#define MAX_BACKUP_INVL 4 /* Maximum interval between backups */
-#define MAX_CKPT_INVL 5   /* Maximum interval between checkpoints */
+#define MAX_BACKUP_INVL 4000 //4 /* Maximum interval between backups */
+#define MAX_CKPT_INVL 2   /* Maximum interval between checkpoints */
 #define MAX_TH 200        /* Maximum configurable threads */
 #define MAX_TIME 40
 #define MAX_VAL 1024
@@ -127,7 +127,7 @@ extern char *__wt_optarg;
 
 #define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
-    "M,create,"                                               \
+    "M,create,verbose=[timestamp:5,transaction:5],"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
@@ -659,6 +659,8 @@ thread_run(void *arg)
      * transactions.
      */
     use_prep = (use_ts && td->threadnum % PREPARE_PCT == 0) ? true : false;
+    use_prep = false;//yang add change
+    //use_ts = false;//yang add change
     durable_ahead_commit = false;
 
     /*
@@ -758,6 +760,16 @@ thread_run(void *arg)
             testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts);
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
+
+       {//1111111111111111
+            char buf[100];
+            snprintf(buf, sizeof(buf), "yang test 11111111111 thread id: %u", td->threadnum);
+            
+            ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
+            WT_UNUSED(ret);
+        }
+
+        __wt_sleep(0, 110000);//yang add change 
         if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
@@ -790,7 +802,25 @@ thread_run(void *arg)
 
             testutil_check(prepared_session->commit_transaction(prepared_session, tscfg));
         }
+
+        __wt_sleep(0, 110000);//yang add change 
+        {//22222222222222
+             char buf[100];
+             snprintf(buf, sizeof(buf), "yang test 2222222222 thread id: %u", td->threadnum);
+             
+             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
+             WT_UNUSED(ret);
+        }
+
         testutil_check(session->commit_transaction(session, NULL));
+        __wt_sleep(0, 110000);//yang add change 
+        {//3333333333333
+             char buf[100];
+             snprintf(buf, sizeof(buf), "yang test 3333333333 thread id: %u", td->threadnum);
+             
+             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
+             WT_UNUSED(ret);
+        }
 
         /* Make checkpoint and backup race more likely to happen. */
         if (use_backups && iter == 0)
@@ -1688,7 +1718,7 @@ main(int argc, char *argv[])
                       ENOENT, "waited %" PRIu32 " seconds for checkpoint file creation", wait_time);
                 }
             }
-            sleep(timeout);
+            sleep(timeout); //yang add change  也就是timestamp -t xxx， 运行多长时间
             sa.sa_handler = SIG_DFL;
             testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
@@ -1757,6 +1787,7 @@ main(int argc, char *argv[])
         ret = recover_and_verify(0, 0);
     }
 
+    return 0;//yang add change
     /*
      * Clean up.
      */

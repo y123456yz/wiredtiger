@@ -100,7 +100,7 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
             (dump_session->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" :
                                                                   "snapshot")));
         WT_ERR(__wt_msg(session, "  Transaction:"));
-        WT_ERR(__wt_verbose_dump_txn_one(session, dump_session, 0, NULL));
+        //WT_ERR(__wt_verbose_dump_txn_one(session, dump_session, 0, NULL));
     } else {
         WT_ERR(__wt_msg(session, "  Number of positioned cursors: %u", dump_session->ncursors));
         TAILQ_FOREACH (cursor, &dump_session->cursors, q) {

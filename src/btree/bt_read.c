@@ -65,9 +65,10 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
             return (true);
         return (false);
     }
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __evict_force_check");
 
     /* Bump the oldest ID, we're about to do some visibility checks. */
-    WT_IGNORE_RET(__wt_txn_update_oldest(session, 0));
+    WT_IGNORE_RET(__wt_txn_update_oldest(session, 0, "__evict_force_check"));
 
     /*
      * Allow some leeway if the transaction ID isn't moving forward since it is unlikely eviction
@@ -167,7 +168,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * Update oldest before checking; we're about to read from disk so it's worth doing some
          * work to avoid that.
          */
-        WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+        //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __page_read");
+        WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__page_read"));
         if (ref->page_del != NULL && __wt_page_del_visible_all(session, ref->page_del, true))
             __wt_overwrite_and_free(session, ref->page_del);
 

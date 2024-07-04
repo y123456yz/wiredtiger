@@ -309,8 +309,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 done:
     if (update_shared_state)
         __wt_atomic_storev64(&txn_shared->pinned_id, pinned_id);
+    __txn_sort_snapshot(session, n, current_id); //yang add change 从__wt_readunlock外落入__wt_readunlock内
     __wt_readunlock(session, &txn_global->rwlock);
-    __txn_sort_snapshot(session, n, current_id);
 }
 
 /*
@@ -485,7 +485,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
  *     Sweep the running transactions to update the oldest ID required.
  */
 int
-__wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
+__wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags, const char* func)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -495,6 +495,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     uint64_t prev_last_running, prev_metadata_pinned, prev_oldest_id;
     bool strict, wait;
 
+    //WT_IGNORE_RET(__wt_verbose_dump_txn(session, "__wt_txn_update_oldest begin")); //yang add change xxxxxxxxxxxxxxx
     conn = S2C(session);
     txn_global = &conn->txn_global;
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
@@ -580,7 +581,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
               oldest_session->txn->snapshot_data.snap_min);
         }
     }
-
+    WT_UNUSED(func);
+    //WT_IGNORE_RET(__wt_verbose_dump_txn(session, func)); //yang add change xxxxxxxxxxxxxxx
 done:
     __wt_writeunlock(session, &txn_global->rwlock);
     return (ret);
@@ -2788,22 +2790,22 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
         0);
 }
 
-/*
- * __wt_verbose_dump_txn_one --
- *     Output diagnostic information about a transaction structure.
- */
+
 int
 __wt_verbose_dump_txn_one(
-  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string)
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string, 
+  WT_ITEM *txn_one_buf)
 {
-    WT_DECL_ITEM(buf);
-    WT_DECL_ITEM(snapshot_buf);
-    WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
+    //char buf[512 + 2560], snapshot_buf[2560], snapshot_buf_tmp[32];
+    char snapshot_buf_tmp[32];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
+    WT_DECL_ITEM(snapshot_buf);
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
 
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
@@ -2823,19 +2825,26 @@ __wt_verbose_dump_txn_one(
 
     WT_ERR(__wt_scr_alloc(session, 2048, &snapshot_buf));
     WT_ERR(__wt_buf_fmt(session, snapshot_buf, "%s", "["));
-    for (i = 0; i < txn->snapshot_data.snapshot_count; i++)
-        WT_ERR(__wt_buf_catfmt(
-          session, snapshot_buf, "%s%" PRIu64, i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
+    for (i = 0; i < txn->snapshot_data.snapshot_count; i++) {
+        if (i == 0)
+            WT_ERR(__wt_snprintf(
+              snapshot_buf_tmp, sizeof(snapshot_buf_tmp), "%lu", txn->snapshot_data.snapshot[i]));
+        else
+            WT_ERR(__wt_snprintf(
+              snapshot_buf_tmp, sizeof(snapshot_buf_tmp), ", %" PRIu64, txn->snapshot_data.snapshot[i]));
+        WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", snapshot_buf_tmp));
+    }
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
-    buf_len = (uint32_t)snapshot_buf->size + 512;
-    WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
 
+    buf_len = snapshot_buf->size + 512;
+    WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
+    
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
      * error message.
      */
     WT_ERR(
-      __wt_snprintf((char *)buf->data, buf_len,
+      __wt_snprintf((char*)buf->data, buf_len,
         "transaction id: %" PRIu64 ", mod count: %u"
         ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
         ", snapshot: %s"
@@ -2850,39 +2859,35 @@ __wt_verbose_dump_txn_one(
         ", rollback reason: %s"
         ", flags: 0x%08" PRIx32 ", isolation: %s",
         txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
-        txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
+        txn->snapshot_data.snapshot_count, (char*)snapshot_buf->data,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
         __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-        __wt_lsn_offset(&txn->ckpt_lsn), txn->full_ckpt ? "true" : "false",
+        txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
         txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
      */
     if (0 != error_code) {
-        WT_ERR_MSG(session, error_code, "%s, %s", (char *)buf->data,
-          error_string != NULL ? error_string : "");
+        WT_ERR_MSG(session, error_code, "%s, %s", (char*)buf->data, error_string != NULL ? error_string : "");
     } else {
-        WT_ERR(__wt_msg(session, "%s", (char *)buf->data));
+        WT_ERR(__wt_buf_catfmt(session, txn_one_buf, "%s\r\n", (char*)buf->data));
     }
 
 err:
-    __wt_scr_free(session, &buf);
     __wt_scr_free(session, &snapshot_buf);
+    __wt_scr_free(session, &buf);
 
     return (ret);
 }
 
-/*
- * __wt_verbose_dump_txn --
- *     Output diagnostic information about the global transaction state.
- */
+
 int
-__wt_verbose_dump_txn(WT_SESSION_IMPL *session)
+__wt_verbose_dump_txn(WT_SESSION_IMPL *session, const char *func_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *sess;
@@ -2891,75 +2896,115 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     uint64_t id;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
-
+    WT_DECL_ITEM(snapshot_buf);
+   // WT_DECL_ITEM(txn_one_buf);
+    WT_DECL_RET;
+    int txn_shared_list_count = 0;
+    
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "transaction state dump"));
+    //return 0;//yang add change
 
-    WT_RET(__wt_msg(session, "current ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->current)));
-    WT_RET(__wt_msg(
-      session, "last running ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->last_running)));
-    WT_RET(__wt_msg(
-      session, "metadata_pinned ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->metadata_pinned)));
-    WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->oldest_id)));
+    WT_ERR(__wt_scr_alloc(session, 20480, &snapshot_buf));
+    
+    if (func_name)
+        WT_ERR(__wt_buf_fmt(session, snapshot_buf, "\r\n\r\n%s:", func_name));
+    else 
+        WT_ERR(__wt_buf_fmt(session, snapshot_buf, "\r\n\r\n%s:", WT_DIVIDER));
 
-    WT_RET(__wt_msg(session, "durable timestamp: %s",
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "transaction state dump\r\n"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "now print session ID: %" PRIu32 "\r\n", session->id));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "current ID: %" PRIu64 "\r\n", txn_global->current));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "last running ID: %" PRIu64 "\r\n", txn_global->last_running));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "metadata_pinned ID: %" PRIu64 "\r\n", txn_global->metadata_pinned));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "oldest ID: %" PRIu64 "\r\n", txn_global->oldest_id));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "durable timestamp: %s\r\n",
       __wt_timestamp_to_string(txn_global->durable_timestamp, ts_string)));
-    WT_RET(__wt_msg(session, "oldest timestamp: %s",
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "oldest timestamp: %s\r\n",
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string)));
-    WT_RET(__wt_msg(session, "pinned timestamp: %s",
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "pinned timestamp: %s\r\n",
       __wt_timestamp_to_string(txn_global->pinned_timestamp, ts_string)));
-    WT_RET(__wt_msg(session, "stable timestamp: %s",
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "stable timestamp: %s\r\n",
       __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string)));
-    WT_RET(__wt_msg(
-      session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
-      __wt_atomic_loadbool(&txn_global->has_oldest_timestamp) ? "yes" : "no"));
-    WT_RET(__wt_msg(
-      session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
-    WT_RET(__wt_msg(
-      session, "has_stable_timestamp: %s", txn_global->has_stable_timestamp ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "oldest_is_pinned: %s", txn_global->oldest_is_pinned ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "stable_is_pinned: %s", txn_global->stable_is_pinned ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "has_durable_timestamp: %s\r\n", txn_global->has_durable_timestamp ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "has_oldest_timestamp: %s\r\n", txn_global->has_oldest_timestamp ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "has_pinned_timestamp: %s\r\n", txn_global->has_pinned_timestamp ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "has_stable_timestamp: %s\r\n", txn_global->has_stable_timestamp ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "oldest_is_pinned: %s\r\n", txn_global->oldest_is_pinned ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "stable_is_pinned: %s\r\n", txn_global->stable_is_pinned ? "yes" : "no"));
 
-    WT_RET(__wt_msg(session, "checkpoint running: %s",
-      __wt_atomic_loadvbool(&txn_global->checkpoint_running) ? "yes" : "no"));
-    WT_RET(
-      __wt_msg(session, "checkpoint generation: %" PRIu64, __wt_gen(session, WT_GEN_CHECKPOINT)));
-    WT_RET(__wt_msg(session, "checkpoint pinned ID: %" PRIu64,
-      __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id)));
-    WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64,
-      __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.id)));
 
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "checkpoint running: %s\r\n", txn_global->checkpoint_running ? "yes" : "no"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "checkpoint generation: %" PRIu64 "\r\n", __wt_gen(session, WT_GEN_CHECKPOINT)));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "checkpoint pinned ID: %" PRIu64 "\r\n", txn_global->checkpoint_txn_shared.pinned_id));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf,  "checkpoint timestamp: %s\r\n",
+      __wt_timestamp_to_string(txn_global->checkpoint_timestamp, ts_string)));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "checkpoint txn ID: %" PRIu64 "\r\n", txn_global->checkpoint_txn_shared.id));
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
-    WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
-    WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
-
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "session count: %" PRIu32 "\r\n", session_cnt));
     /*
      * Walk each session transaction state and dump information. Accessing the content of session
      * handles is not thread safe, so some information may change while traversing if other threads
      * are active at the same time, which is OK since this is diagnostic code.
      */
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
+
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        /* Skip sessions with no active transaction */
-        if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&
-          __wt_atomic_loadv64(&s->pinned_id) == WT_TXN_NONE)
+        if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
             continue;
-        sess = &WT_CONN_SESSIONS_GET(conn)[i];
-        WT_RET(__wt_msg(session,
-          "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
-          ", metadata pinned ID: %" PRIu64 ", name: %s",
-          i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
-          sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
+            
+        //if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) //yang add change   yang add todo xxxxxxxxxxxxxxxx
+        //    continue;
+
+        txn_shared_list_count++;
     }
-    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
+    WT_RET(__wt_buf_catfmt(session, snapshot_buf, "session txn_shared_list_count: %d\r\n", txn_shared_list_count));
+    WT_RET(__wt_buf_catfmt(session, snapshot_buf, "Transaction state of active sessions:\r\n"));
+    
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        /* Skip sessions with no active transaction */
+        //下面的内容只有在对应session事务调用__wt_txn_id_alloc获取到事务id或者s->pinned_id部位0后才会输出
+
+        //只打印有事务id的session信息，也就是这个session当前还在事务进行中，当一个session commit提交事务后，
+        //  这个session的事务id会置为WT_TXN_NONE，所以就不会有后面的打印
+        if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
+            continue;
+            
+        //if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) //yang add change   yang add todo xxxxxxxxxxxxxxxx
+        //     continue;
+
+        sess = &WT_CONN_SESSIONS_GET(conn)[i];
+        WT_RET(__wt_buf_catfmt(session, snapshot_buf,
+          "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s\r\n", i, id,
+          s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
+        WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL, snapshot_buf));
+    }
+
+    s = &txn_global->checkpoint_txn_shared;
+    if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE) {
+        goto end;
+    }
+    //yang add todo xxxxxxxxxxxxxxxxxxxxxx下一期PR加上
+   /* sess = session;
+    WT_RET(__wt_buf_catfmt(session, snapshot_buf, 
+      "checkpoint session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s\r\n", i, id,
+      s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
+    WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL, snapshot_buf));
+    */
+end:
+    __wt_writelock(session, &txn_global->visibility_rwlock);
+    WT_ERR(__wt_msg(session, "%s", (char*)snapshot_buf->data));
+    
+    
+err:
+    __wt_scr_free(session, &snapshot_buf);
+    __wt_writeunlock(session, &txn_global->visibility_rwlock);
 
     return (0);
 }
+
 
 #ifdef HAVE_UNITTEST
 int WT_CDECL

@@ -412,6 +412,7 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
 
         --seconds;
         sleep(1);
+        //usleep(200000);  //yang add change
     }
 }
 #endif

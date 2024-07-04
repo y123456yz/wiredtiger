@@ -373,7 +373,8 @@ __wti_lsm_checkpoint_chunk(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_L
     }
 
     /* Stop if a running transaction needs the chunk. */
-    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__wti_lsm_checkpoint_chunk"));
     if (!__wti_lsm_chunk_visible_all(session, chunk)) {
         /*
          * If there is cache pressure consider making a chunk evictable to avoid the cache getting

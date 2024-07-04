@@ -1861,7 +1861,8 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
      * Ensure the oldest ID is as up to date as possible so we can use a simple check to find if
      * there are any running transactions.
      */
-    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __txn_checkpoint");
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__txn_checkpoint"));
 
     *txn_active =
       (__wt_atomic_loadv64(&txn_global->oldest_id) != __wt_atomic_loadv64(&txn_global->current) ||
