@@ -2430,6 +2430,8 @@ __session_get_rollback_reason(WT_SESSION *wt_session)
 /*
  * __session_checkpoint --
  *     WT_SESSION->checkpoint method.
+ __wt_txn_recover  __rollback_to_stable_int  __logmgr_force_remove调用，或者用户现成session->checkpoint()调用
+ 搜索->checkpoint( 或者 .checkpoint(
  */
 static int
 __session_checkpoint(WT_SESSION *wt_session, const char *config)
@@ -2456,6 +2458,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
      */
     WT_ERR(__wt_txn_context_check(session, false));
 
+    printf("yang test ....__session_checkpoint...............r\n");
     ret = __wt_txn_checkpoint(session, cfg, true);
 
     /*

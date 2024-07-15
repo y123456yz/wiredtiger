@@ -379,11 +379,13 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
     testutil_tiered_storage_configuration(
       opts, home, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s]", config == NULL ? "" : config,
+    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s],verbose=[timestamp:5,transaction:5, "
+        "recovery:5, recovery_progress:5]", config == NULL ? "" : config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
       tiered_cfg, tiered_ext_cfg);
 
-    if (opts->verbose)
+    printf("yang test ..........testutil_wiredtiger_open..............\r\n");
+    //if (opts->verbose)
         printf("wiredtiger_open configuration: %s\n", buf);
     testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
 }
@@ -537,7 +539,8 @@ example_setup(int argc, char *const *argv)
     (void)argc; /* Unused variable */
 
     (void)testutil_set_progname(argv);
-
+    home = "WT_HOME";
+    return home; //yang add change xxxxxxxxxxxxxxx
     /*
      * Create a clean test directory for this run of the test program if the environment variable
      * isn't already set (as is done by make check).

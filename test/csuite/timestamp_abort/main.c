@@ -73,7 +73,7 @@ static char home[1024]; /* Program working dir */
 #define MAX_CKPT_INVL 2   /* Maximum interval between checkpoints */
 #define MAX_TH 200        /* Maximum configurable threads */
 #define MAX_TIME 40
-#define MAX_VAL 1024
+#define MAX_VAL 100//1024 yang add change todo xxxxxxxxx
 #define MIN_TH 5
 #define MIN_TIME 10
 #define PREPARE_DURABLE_AHEAD_COMMIT 10
@@ -127,7 +127,7 @@ extern char *__wt_optarg;
 
 #define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
-    "M,create,verbose=[timestamp:5,transaction:5],"                                               \
+    "M,create,verbose=[timestamp:5,transaction:5, recovery:5, recovery_progress:5],"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
@@ -226,7 +226,7 @@ stat_func(void *arg)
         testutil_check(stat_c->get_value(stat_c, &desc, &pvalue, &value));
         testutil_check(stat_c->close(stat_c));
         if (desc != NULL && value != last)
-            printf("%s: %" PRId64 "\n", desc, value);
+            printf("stat_func  %s: %" PRId64 "\n", desc, value);
         last = value;
         usleep(USEC_STAT);
     }
@@ -735,6 +735,17 @@ thread_run(void *arg)
             cur_oplog->set_key(cur_oplog, kname);
             cur_shadow->set_key(cur_shadow, kname);
         }
+        
+        {//1111111111111111
+             char buf[100];
+             snprintf(buf, sizeof(buf), "yang test 000000000 thread id: %u, active_ts : %lu", 
+                 td->threadnum, active_ts);
+             
+             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
+             WT_UNUSED(ret);
+         }
+        __wt_sleep(0, 110000);//yang add change 
+        
         /*
          * Put an informative string into the value so that it can be viewed well in a binary dump.
          */
@@ -763,7 +774,8 @@ thread_run(void *arg)
 
        {//1111111111111111
             char buf[100];
-            snprintf(buf, sizeof(buf), "yang test 11111111111 thread id: %u", td->threadnum);
+            snprintf(buf, sizeof(buf), "yang test 11111111111 thread id: %u, active_ts : %lu", 
+                td->threadnum, active_ts);
             
             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
             WT_UNUSED(ret);
@@ -806,8 +818,9 @@ thread_run(void *arg)
         __wt_sleep(0, 110000);//yang add change 
         {//22222222222222
              char buf[100];
-             snprintf(buf, sizeof(buf), "yang test 2222222222 thread id: %u", td->threadnum);
-             
+             snprintf(buf, sizeof(buf), "yang test 22222222222 thread id: %u, active_ts : %lu", 
+                 td->threadnum, active_ts);
+
              ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
              WT_UNUSED(ret);
         }
@@ -816,7 +829,9 @@ thread_run(void *arg)
         __wt_sleep(0, 110000);//yang add change 
         {//3333333333333
              char buf[100];
-             snprintf(buf, sizeof(buf), "yang test 3333333333 thread id: %u", td->threadnum);
+             snprintf(buf, sizeof(buf), "yang test 333333333333 thread id: %u, active_ts : %lu", 
+                 td->threadnum, active_ts);
+
              
              ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
              WT_UNUSED(ret);

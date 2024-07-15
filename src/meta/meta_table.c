@@ -305,6 +305,7 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
          * to get some peace and quiet.
          */
         WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_read(session, key, valuep));
+       // printf("yang test ........__wt_metadata_search......read turtle.........key:%s\r\n", *valuep);
         if (ret != 0)
             __wt_free(session, *valuep);
         return (ret);

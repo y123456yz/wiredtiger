@@ -92,7 +92,7 @@ __rts_assert_timestamps_unchanged(
 }
 
 /*
- * __rollback_to_stable_int --
+ * __rollback_to_stable_int --  
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int

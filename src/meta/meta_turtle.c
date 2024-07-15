@@ -611,6 +611,7 @@ err:
 /*
  * __wti_turtle_read --
  *     Read the turtle file.
+ 读取"WiredTiger.turtle" key对应文件内容，也就是wiredtiger.wt文件的元数据
  */
 int
 __wti_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
@@ -653,7 +654,7 @@ __wti_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
 
     /* Copy the value for the caller. */
     WT_ERR(__wt_strdup(session, buf->data, valuep));
-
+   // printf("yang test ......__wti_turtle_read.........valuep:%s\r\n", *valuep);
 err:
     WT_TRET(__wt_fclose(session, &fs));
     __wt_scr_free(session, &buf);

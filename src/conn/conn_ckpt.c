@@ -96,6 +96,7 @@ __ckpt_server(void *arg)
         if (!__ckpt_server_run_chk(session))
             break;
 
+        printf("yang test ......__ckpt_server.......\r\n");
         checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
         WT_ERR(wt_session->checkpoint(wt_session, NULL));
 

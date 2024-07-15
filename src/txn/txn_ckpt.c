@@ -406,8 +406,10 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
      */
     TAILQ_FOREACH (ndsrc, &S2C(session)->dsrcqh, q) {
         dsrc = ndsrc->dsrc;
-        if (dsrc->checkpoint != NULL)
+        if (dsrc->checkpoint != NULL) {
+            printf("yang test ............__checkpoint_data_source.....................\r\n");
             WT_RET(dsrc->checkpoint(dsrc, (WT_SESSION *)session, (WT_CONFIG_ARG *)cfg));
+        }
     }
     return (0);
 }

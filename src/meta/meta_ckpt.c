@@ -1490,6 +1490,7 @@ __wt_meta_ckptlist_set(
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)__wt_lsn_offset(ckptlsn)));
 
+    printf("yang test ....__wt_meta_ckptlist_set....ckptlsn:%p\r\n", ckptlsn);
     if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 

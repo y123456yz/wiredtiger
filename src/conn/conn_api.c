@@ -1431,6 +1431,9 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
+    __wt_verbose(session, WT_VERB_TRANSACTION,
+      "__conn_set_timestamp config:%s", (char*)config);
+
     ret = __wt_txn_global_set_timestamp(session, cfg);
 err:
 #ifdef HAVE_CALL_LOG
@@ -2805,12 +2808,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
+    
     WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
     *connectionp = NULL;
+
+  //  printf("yang test ........wiredtiger_open............config:%s\r\n", config);
 
     conn = NULL;
     session = verify_session = NULL;

@@ -244,6 +244,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
 
     session = r->session;
     cursor = NULL;
+   // __wt_verbose_debug2(session, WT_VERB_RECOVERY, "__txn_op_apply apply at LSN %" PRIu32 "/%" PRIu32, 
+   //   (lsnp)->l.file, (lsnp)->l.offset);   
 
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -355,6 +357,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
 
     case WT_LOGOP_ROW_PUT:
         WT_ERR(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
+        //printf("yang test .............WT_LOGOP_ROW_PUT......... \r\n");
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
         __wt_cursor_set_raw_value(cursor, &value);
@@ -541,6 +544,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
      * checkpoint after recovery writes the correct value into the metadata.
      */
     conn->txn_global.meta_ckpt_timestamp = conn->txn_global.recovery_timestamp = ckpt_timestamp;
+   // printf("yang test .......__recovery_set_checkpoint_timestamp............\r\n");
+    //WT_VERB_RECOVERY_ALL.cnt
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.recovery_timestamp, ts_string));
@@ -699,7 +704,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
+   // printf("yang test ......__recovery_setup_file............. config:%s\r\n", config);
 
+    
     /* Track the largest file ID we have seen. */
     if (fileid > r->max_fileid)
         r->max_fileid = fileid;
@@ -930,6 +937,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+    printf("yang test ....__wt_txn_recover......config:%s\r\n", config);
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
     metafile = &r.files[WT_METAFILE_ID];
@@ -950,6 +958,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          * logging in the log file number that is larger than any checkpoint LSN we have from the
          * earlier time.
          */
+        printf("yang test ..........__wt_txn_recover.....1............ was_backup:%d\r\n", was_backup);
         WT_ERR(__recovery_file_scan(&r));
         /*
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
@@ -979,6 +988,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * system records with incremental IDs. So the first pass may recover only backup information or
      * metadata (and also backup information).
      */
+    printf("yang test ..........__wt_txn_recover................. was_backup:%d\r\n", was_backup);
     if (was_backup) {
         r.metadata_only = false;
         r.backup_only = true;
@@ -1048,6 +1058,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.files[0].c = NULL;
     WT_ERR(metac->close(metac));
 
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR)) {
+        printf("yang test ..1...__wt_txn_recover........WT_CONN_LOG_RECOVER_ERR......\r\n");
+    }
+
+
     /*
      * Now, recover all the files apart from the metadata. Pass WT_LOGSCAN_RECOVER so that old logs
      * get truncated.
@@ -1058,6 +1073,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
       r.ckpt_lsn.l.file, __wt_lsn_offset(&r.ckpt_lsn), r.max_rec_lsn.l.file,
       __wt_lsn_offset(&r.max_rec_lsn));
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
+
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR)) {
+        printf("yang test ..1...__wt_txn_recover......WT_CONN_LOG_RECOVER_ERR....needs_rec:%d..\r\n", needs_rec);
+    }
+
     /*
      * Check if the database was shut down cleanly. If not return an error if the user does not want
      * automatic recovery.

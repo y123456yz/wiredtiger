@@ -423,12 +423,14 @@ __wt_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
              */
             WT_ERR(c->get_value(
               c, &dummy_txnid, &rectype, &dummy_optype, &dummy_fileid, &dummy_key, &dummy_value));
+            printf("yang test .........__wt_log_needs_recovery.......rectype:%u\r\n", rectype);
             if (rectype == WT_LOGREC_COMMIT)
                 break;
         }
         /*
          * If we get to the end of the log, we can skip recovery.
          */
+        printf("yang test .........__wt_log_needs_recovery.......ret:%d\r\n", ret);
         if (ret == WT_NOTFOUND) {
             *recp = false;
             ret = 0;
@@ -2085,7 +2087,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
     corrupt = eol = false;
     firstrecord = 1;
     need_salvage = false;
-
+   // printf("yang test ............1............__wt_log_scan........\r\n");
+    
     /*
      * If the caller did not give us a callback function there is nothing to do.
      */
@@ -2134,6 +2137,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
 
+    //printf("yang test ............2............__wt_log_scan........\r\n");
     if (start_lsnp != NULL) {
         /*
          * Offsets must be on allocation boundaries. An invalid LSN from a user should just return
@@ -2167,6 +2171,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
         if (!WT_IS_INIT_LSN(start_lsnp))
             WT_ASSIGN_LSN(&start_lsn, start_lsnp);
     }
+   // printf("yang test ............3............__wt_log_scan........\r\n");
     WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
         WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
@@ -2399,6 +2404,7 @@ advance:
                 WT_ERR(__log_decompress(session, cbbuf, uncitem));
                 cbbuf = uncitem;
             }
+           // printf("yang test ........................__wt_log_scan........\r\n");
             WT_ERR((*func)(session, cbbuf, &rd_lsn, &next_lsn, cookie, firstrecord));
 
             firstrecord = 0;

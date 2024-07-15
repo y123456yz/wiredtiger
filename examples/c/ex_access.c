@@ -37,45 +37,72 @@ access_example(void)
 {
     /*! [access example connection] */
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
+    WT_CURSOR *cursor, *cursor2;
+    WT_SESSION *session, *session2;
     const char *key, *value;
     int ret;
 
     /* Open a connection to the database, creating it if necessary. */
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(all)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(all),log=(enabled:true,recover=on,remove=true),"
+    "verbose=[timestamp:5,transaction:5, all:0, metadata:5, recovery:5, recovery_progress:5, log:5]", &conn));
 
-    /* Open a session handle for the database. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    /*! [access example connection] */
-
-    /*! [access example table create] */
-    error_check(session->create(session, "table:access", "key_format=S,value_format=S"));
-    /*! [access example table create] */
-
-    /*! [access example cursor open] */
+   // error_check(session->create(session, "table:access", "key_format=S,value_format=S"));
     error_check(session->open_cursor(session, "table:access", NULL, NULL, &cursor));
-    /*! [access example cursor open] */
 
-    /*! [access example cursor insert] */
-    cursor->set_key(cursor, "key1"); /* Insert a record. */
+    error_check(conn->open_session(conn, NULL, NULL, &session2));
+   // error_check(session2->create(session2, "table:access2", "key_format=S,value_format=S"));
+    error_check(session2->open_cursor(session2, "table:access2", NULL, NULL, &cursor2));
+
+
+    /*
+    cursor->set_key(cursor, "key1");  
     cursor->set_value(cursor, "value1");
     error_check(cursor->insert(cursor));
-    /*! [access example cursor insert] */
 
-    /*! [access example cursor list] */
-    error_check(cursor->reset(cursor)); /* Restart the scan. */
+    cursor2->set_key(cursor2, "key1");  
+    cursor2->set_value(cursor2, "value1");
+    error_check(cursor2->insert(cursor2));
+    
+    error_check(session->checkpoint(session, NULL));
+    
+    cursor->set_key(cursor, "key2");  
+    cursor->set_value(cursor, "value2");
+    error_check(cursor->insert(cursor));
+    cursor->set_key(cursor, "key3");  
+    cursor->set_value(cursor, "value3");
+    error_check(cursor->insert(cursor));
+    error_check(cursor->reset(cursor)); 
+
+    cursor2->set_key(cursor2, "key2");  
+    cursor2->set_value(cursor2, "value2");
+    error_check(cursor2->insert(cursor2));
+    cursor2->set_key(cursor2, "key3");  
+    cursor2->set_value(cursor2, "value3");
+    error_check(cursor2->insert(cursor2));
+    error_check(cursor2->reset(cursor2)); 
+    */
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &key));
         error_check(cursor->get_value(cursor, &value));
 
-        printf("Got record: %s : %s\n", key, value);
+        printf("Got cursor record: %s : %s\n", key, value);
     }
+
+    while ((ret = cursor2->next(cursor2)) == 0) {
+        error_check(cursor2->get_key(cursor2, &key));
+        error_check(cursor2->get_value(cursor2, &value));
+
+        printf("Got cursor2 record: %s : %s\n", key, value);
+    }
+
+    //__wt_sleep(3, 10000);
+    exit(1);
     scan_end_check(ret == WT_NOTFOUND); /* Check for end-of-table. */
     /*! [access example cursor list] */
 
     /*! [access example close] */
-    error_check(conn->close(conn, NULL)); /* Close all handles. */
+   // error_check(conn->close(conn, NULL)); /* Close all handles. */  //yang add change  模拟非正常close，也就是不做checkpoint
                                           /*! [access example close] */
 }
 

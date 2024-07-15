@@ -47,7 +47,7 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
 /*
  * __logmgr_force_remove --
  *     Force a checkpoint out and then force a removal, waiting for the first log to be removed up
- *     to the given log number.
+ *     to the given log number.  
  */
 static int
 __logmgr_force_remove(WT_SESSION_IMPL *session, uint32_t lognum)
@@ -246,6 +246,9 @@ __wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    printf("yang test .1......__wti_logmgr_config...........enabled:%d.......\r\n config0:%s,"
+        "cfg1:%s\r\n, cfg2:%s\r\n, cfg3:%s, cfg4:%s, cfg5:%s\r\n", 
+        enabled, cfg[0], cfg[1], cfg[2], cfg[3], cfg[4], cfg[5]);
 
     /*
      * Setup a log path and compression even if logging is disabled in case we are going to print a
@@ -320,6 +323,11 @@ __wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     if (cval.val != 0)
         conn->log_force_write_wait = (uint32_t)cval.val;
 
+
+    printf("yang test .2......__wti_logmgr_config...........enabled:%d.......\r\n config0:%s,"
+        "cfg1:%s\r\n, cfg2:%s\r\n, cfg3:%s, cfg4:%s, cfg5:%s\r\n", 
+        enabled, cfg[0], cfg[1], cfg[2], cfg[3], cfg[4], cfg[5]);
+
     /*
      * Note it's meaningless to reconfigure this value during runtime, it only matters on create
      * before recovery runs.
@@ -328,8 +336,10 @@ __wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      */
     if (!reconfig) {
         WT_RET(__wt_config_gets_def(session, cfg, "log.recover", 0, &cval));
-        if (WT_CONFIG_LIT_MATCH("error", cval))
+        if (WT_CONFIG_LIT_MATCH("error", cval)) {
             FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
+            printf("yang test ..........WT_CONN_LOG_RECOVER_ERR...........\r\n");
+        }
     }
 
     WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
@@ -973,12 +983,14 @@ __wti_logmgr_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+   // printf("yang test ............__wti_logmgr_create.................1...\r\n");
     /*
      * Logging configuration is parsed early on for compatibility checking. It is separated from
      * turning on the subsystem. We only need to proceed here if logging is enabled.
      */
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         return (0);
+   // printf("yang test ............__wti_logmgr_create.................2...\r\n");
 
     FLD_SET(conn->log_flags, WT_CONN_LOG_ENABLED);
     /*

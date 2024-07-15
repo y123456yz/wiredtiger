@@ -145,6 +145,7 @@ util_flush(WT_SESSION *session, const char *uri)
         util_free(buf);
         return (util_err(session, ret, NULL));
     }
+    printf("yang test ............util_flush.....................\r\n");
     ret = session->checkpoint(session, buf);
     util_free(buf);
 
