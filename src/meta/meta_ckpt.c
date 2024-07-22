@@ -805,6 +805,7 @@ __wt_meta_ckptlist_get(
     *ckptbasep = NULL;
     if (allocated != NULL)
         *allocated = 0;
+    printf("yang test ............__wt_meta_ckptlist_get.................\r\n");
 
     config = NULL;
 
@@ -866,10 +867,11 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
 
     ckptbase = NULL;
     allocated = slot = 0;
-
+    printf("yang test ......1......__wt_meta_ckptlist_get_from_config.................\r\n");
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
         __wt_config_subinit(session, &ckptconf, &v);
+        printf("yang test ......2......__wt_meta_ckptlist_get_from_config.................\r\n");
         for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
             /*
              * Allocate a slot for a new value, plus a slot to mark the end.
@@ -890,6 +892,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
     if (!update && slot == 0)
         WT_ERR(WT_NOTFOUND);
 
+    printf("yang test ......3......__wt_meta_ckptlist_get_from_config...............%d, %lu\r\n", update, slot);
     /* Sort in creation-order. */
     __wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
 
@@ -1739,9 +1742,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
     WT_ERR(__meta_print_snapshot(session, valbuf));
     WT_ERR(__meta_sysinfo_update(
       session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, valbuf->data));
-
-    /* Print what we did. */
-
+      
     __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
       "saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
       " snapshot count: %" PRIu32
@@ -1919,6 +1920,9 @@ err:
 /*
  * __meta_retrieve_timestamp --
  *     Retrieve a timestamp from the metadata. Not present explicitly means WT_TS_NONE.
+
+system:checkpoint\00
+checkpoint_timestamp="3b9aca04",checkpoint_time=1721294244,write_gen=13\00
  */
 static int
 __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,

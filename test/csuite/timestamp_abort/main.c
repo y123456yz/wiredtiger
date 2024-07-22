@@ -125,9 +125,11 @@ extern char *__wt_optarg;
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
+//,verbose=[timestamp:5,transaction:5,recovery:5, recovery_progress:5]
+//注意这里的verbose我在testutil_wiredtiger_open修改了，会被覆盖掉
 #define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
-    "M,create,verbose=[timestamp:5,transaction:5, recovery:5, recovery_progress:5],"                                               \
+    "M,create,verbose=[rts:5,checkpoint_progress:5,timestamp:5,transaction:5,recovery:5, recovery_progress:5],"                                              \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \

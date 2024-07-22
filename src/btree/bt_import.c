@@ -26,6 +26,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_KEYED_ENCRYPTOR *kencryptor;
     char *checkpoint_list, *config, *config_tmp, fileid[64], *metadata;
     const char *cfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL, NULL, NULL, NULL};
+    printf("yang test ............__wt_import_repair.................\r\n");
 
     ckptbase = NULL;
     checkpoint_list = config = config_tmp = metadata = NULL;

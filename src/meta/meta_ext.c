@@ -86,8 +86,9 @@ __wt_ext_metadata_update(
  */
 int
 __wt_metadata_get_ckptlist(WT_SESSION *session, const char *name, WT_CKPT **ckptbasep)
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+ // WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    printf("yang test ............__wt_metadata_get_ckptlist.................\r\n");
     return (__wt_meta_ckptlist_get((WT_SESSION_IMPL *)session, name, false, ckptbasep, NULL));
 }
 

@@ -71,6 +71,7 @@ __check_imported_ts(
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t ts;
     const char *ts_name;
+    printf("yang test ............__check_imported_ts.................\r\n");
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;

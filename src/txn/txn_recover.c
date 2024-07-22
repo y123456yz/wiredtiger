@@ -671,6 +671,10 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     WT_RET(__recovery_set_checkpoint_timestamp(r));
     WT_RET(__recovery_set_oldest_timestamp(r));
 
+    printf("yang test ........1...__recovery_txn_setup_initial_state..............%d %d\r\n", 
+        conn->txn_global.oldest_is_pinned,
+        conn->txn_global.stable_is_pinned);
+
     /*
      * Now that timestamps extracted from the checkpoint metadata have been configured, configure
      * the pinned timestamp.
@@ -685,6 +689,11 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
     if (conn->txn_global.stable_timestamp != WT_TS_NONE)
         conn->txn_global.has_stable_timestamp = true;
+
+    printf("yang test ........2...__recovery_txn_setup_initial_state..............%d %d\r\n", 
+        conn->txn_global.oldest_is_pinned,
+        conn->txn_global.stable_is_pinned);
+    WT_IGNORE_RET(__wt_verbose_dump_txn(session, "__recovery_txn_setup_initial_state")); //yang add change xxxxxxxxxxxxxxx
 
     return (0);
 }
