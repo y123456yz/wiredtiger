@@ -324,9 +324,9 @@ __wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         conn->log_force_write_wait = (uint32_t)cval.val;
 
 
-    printf("yang test .2......__wti_logmgr_config...........enabled:%d.......\r\n config0:%s,"
-        "cfg1:%s\r\n, cfg2:%s\r\n, cfg3:%s, cfg4:%s, cfg5:%s\r\n", 
-        enabled, cfg[0], cfg[1], cfg[2], cfg[3], cfg[4], cfg[5]);
+   // printf("yang test .2......__wti_logmgr_config...........enabled:%d.......\r\n config0:%s,"
+    //    "cfg1:%s\r\n, cfg2:%s\r\n, cfg3:%s, cfg4:%s, cfg5:%s\r\n", 
+   //     enabled, cfg[0], cfg[1], cfg[2], cfg[3], cfg[4], cfg[5]);
 
     /*
      * Note it's meaningless to reconfigure this value during runtime, it only matters on create

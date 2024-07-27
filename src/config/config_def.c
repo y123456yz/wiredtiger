@@ -3750,7 +3750,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "verbose=[]",
     confchk_WT_CONNECTION_reconfigure, 35, confchk_WT_CONNECTION_reconfigure_jump, 11,
     WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.rollback_to_stable", "dryrun=false,threads=4",
+  {"WT_CONNECTION.rollback_to_stable", "dryrun=false,threads=0", //yang add change  threads=4¸ÄÎª1
     confchk_WT_CONNECTION_rollback_to_stable, 2, confchk_WT_CONNECTION_rollback_to_stable_jump, 12,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.set_file_system", "", NULL, 0, NULL, 13, WT_CONF_SIZING_NONE, false},

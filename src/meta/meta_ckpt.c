@@ -805,7 +805,7 @@ __wt_meta_ckptlist_get(
     *ckptbasep = NULL;
     if (allocated != NULL)
         *allocated = 0;
-    printf("yang test ............__wt_meta_ckptlist_get.................\r\n");
+    //printf("yang test ............__wt_meta_ckptlist_get.................\r\n");
 
     config = NULL;
 
@@ -867,15 +867,16 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
 
     ckptbase = NULL;
     allocated = slot = 0;
-    printf("yang test ......1......__wt_meta_ckptlist_get_from_config.................\r\n");
+   // printf("yang test ......1......__wt_meta_ckptlist_get_from_config.................\r\n");
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
         __wt_config_subinit(session, &ckptconf, &v);
-        printf("yang test ......2......__wt_meta_ckptlist_get_from_config.................\r\n");
+       // printf("yang test ......2......__wt_meta_ckptlist_get_from_config.................\r\n");
         for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
             /*
              * Allocate a slot for a new value, plus a slot to mark the end.
              */
+           // printf("yang test ......sssssss......__wt_meta_ckptlist_get_from_config.................\r\n");
             WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
             ckpt = &ckptbase[slot];
 
@@ -892,7 +893,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
     if (!update && slot == 0)
         WT_ERR(WT_NOTFOUND);
 
-    printf("yang test ......3......__wt_meta_ckptlist_get_from_config...............%d, %lu\r\n", update, slot);
+   // printf("yang test ......3......__wt_meta_ckptlist_get_from_config...............%d, %lu\r\n", update, slot);
     /* Sort in creation-order. */
     __wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
 
@@ -1493,7 +1494,7 @@ __wt_meta_ckptlist_set(
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)__wt_lsn_offset(ckptlsn)));
 
-    printf("yang test ....__wt_meta_ckptlist_set....ckptlsn:%p\r\n", ckptlsn);
+    //printf("yang test ....__wt_meta_ckptlist_set....ckptlsn:%p\r\n", ckptlsn);
     if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
@@ -1749,7 +1750,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
       " base write gen: %" PRIu64,
       txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
-      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+      //__wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]), yang add todo xxxxxxxxxxxxxx hex_timestampÌæ»»oldest_timestamp
+      __wt_timestamp_to_string(WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), ts_string[0]),
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
       conn->base_write_gen);
 

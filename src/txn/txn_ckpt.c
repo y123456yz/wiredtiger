@@ -1471,7 +1471,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
-    printf("yang test .......3....__txn_checkpoint.....end.......full:%d, can_skip:%d\r\n", full, can_skip);
+    //printf("yang test .......3....__txn_checkpoint.....end.......full:%d, can_skip:%d\r\n", full, can_skip);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
@@ -2047,7 +2047,7 @@ __checkpoint_lock_dirty_tree(
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     time_start = __wt_clock(session);
-    printf("yang test ............__checkpoint_lock_dirty_tree.................\r\n");
+    //printf("yang test ............__checkpoint_lock_dirty_tree.................\r\n");
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
 
     /* We may be dropping specific checkpoints, check the configuration. */

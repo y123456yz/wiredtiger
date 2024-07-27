@@ -498,6 +498,13 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
+                {
+                    char ts_string[2][WT_TS_INT_STRING_SIZE];
+                    __wt_verbose(session, WT_VERB_TIMESTAMP, "start_ts %s, durable_ts: %s, %s", 
+                        __wt_timestamp_to_string(upd->start_ts, ts_string[0]), 
+                        __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), 
+                        "__wt_txn_op_set_timestamp");
+                }
             }
         }
     }

@@ -748,6 +748,8 @@ thread_run(void *arg)
          }
         __wt_sleep(0, 110000);//yang add change 
         
+
+        
         /*
          * Put an informative string into the value so that it can be viewed well in a binary dump.
          */
@@ -774,6 +776,7 @@ thread_run(void *arg)
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
 
+       
        {//1111111111111111
             char buf[100];
             snprintf(buf, sizeof(buf), "yang test 11111111111 thread id: %u, active_ts : %lu", 
@@ -782,8 +785,9 @@ thread_run(void *arg)
             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
             WT_UNUSED(ret);
         }
-
         __wt_sleep(0, 110000);//yang add change 
+        
+        
         if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
@@ -817,6 +821,7 @@ thread_run(void *arg)
             testutil_check(prepared_session->commit_transaction(prepared_session, tscfg));
         }
 
+        
         __wt_sleep(0, 110000);//yang add change 
         {//22222222222222
              char buf[100];
@@ -828,6 +833,8 @@ thread_run(void *arg)
         }
 
         testutil_check(session->commit_transaction(session, NULL));
+
+        
         __wt_sleep(0, 110000);//yang add change 
         {//3333333333333
              char buf[100];

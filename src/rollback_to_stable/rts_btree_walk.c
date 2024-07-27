@@ -329,12 +329,14 @@ __wti_rts_btree_walk_btree_apply(
             write_gen = (uint64_t)value.val;
         WT_RET_NOTFOUND_OK(ret);
 
-        if (ret == 0)
+        if (ret == 0) 
+            //yang add todo xxxxxxx 日志中加uri， 下面的日志中没有uri的也可以加上
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               WT_RTS_VERB_TAG_TREE_OBJECT_LOG
-              "btree object found with newest_start_durable_timestamp=%s, "
+              "btree %s object found with newest_start_durable_timestamp=%s, "
               "newest_stop_durable_timestamp=%s, "
-              "rollback_txnid=%" PRIu64 ", write_gen=%" PRIu64,
+              "rollback_txnid=%" PRIu64 ", write_gen=%" PRIu64, 
+              uri,
               __wt_timestamp_to_string(newest_start_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(newest_stop_durable_ts, ts_string[1]), rollback_txnid,
               write_gen);
@@ -443,9 +445,11 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     btree = S2BT(session);
     conn = S2C(session);
 
+    //yang add todo xxxxxx 可以btree对应uri打印出来
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
       WT_RTS_VERB_TAG_TREE_LOGGING
-      "rollback to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
+      "rollback uri:%s to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
+      btree->dhandle->name,
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       F_ISSET(btree, WT_BTREE_LOGGED) ? "true" : "false");
 
