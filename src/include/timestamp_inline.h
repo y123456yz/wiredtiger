@@ -51,6 +51,7 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
+ //durable_ts不为0，则durable_start_ts=durable_ts,否则durable_start_ts=start_ts
  */
 #define WT_TIME_WINDOW_SET_START(tw, upd)                          \
     do {                                                           \
@@ -63,6 +64,7 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
+  //durable_ts不为0，则durable_start_ts=durable_ts,否则durable_start_ts=start_ts
  */
 #define WT_TIME_WINDOW_SET_STOP(tw, upd)                         \
     do {                                                         \

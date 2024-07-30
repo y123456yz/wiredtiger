@@ -252,7 +252,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
             
-        __wt_sleep(1, 0);//yang add change todo xxxxxxxxxxxxxx
+        //__wt_sleep(1, 0);//yang add change todo xxxxxxxxxxxxxx
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));

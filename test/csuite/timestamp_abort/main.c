@@ -357,11 +357,14 @@ thread_ts_run(void *arg)
 
         /* Let the oldest timestamp lag 25% of the time. */
         rand_op = __wt_random(&td->extra_rnd) % 4;
-        if (rand_op == 1)
+        if (rand_op == 1) {
             testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIx64, ts);
-        else
+            printf("yang test ....ts thread.......config:%s\r\n", tscfg);
+        } else {
             testutil_snprintf(tscfg, sizeof(tscfg),
               "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
+              printf("yang test ....ts thread.......config:%s\r\n", tscfg);
+        }
         testutil_check(conn->set_timestamp(conn, tscfg));
 
         /*
@@ -491,11 +494,11 @@ thread_ckpt_run(void *arg)
         /*
          * Since this is the default, send in this string even if running without timestamps.
          */
-        printf("Checkpoint %d start: Flush: %s.\n", i, flush_tier ? "YES" : "NO");
+        printf("Checkpoint %d start: Flush: %s.\r\n\r\n\r\n\r\n", i, flush_tier ? "YES" : "NO");
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
-        printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n", i,
+        printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n\r\n\r\n\r\n\r\n", i,
           flush_tier ? "YES" : "NO", stable);
 
         if (flush_tier) {
@@ -702,6 +705,18 @@ thread_run(void *arg)
 
     /*
      * Write our portion of the key space until we're killed.
+
+     begin_transaction
+     00000000000000
+     cur_coll->insert
+     11111111111111
+     cur_shadow->insert
+     cur_oplog->insert
+     2222222222222222
+     commit_transaction
+     3333333333333333333
+     cur_local->insert
+     444444444444444444
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->threadnum, td->start);
     active_ts = 0;
@@ -775,8 +790,7 @@ thread_run(void *arg)
             testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts);
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
-
-       
+      
        {//1111111111111111
             char buf[100];
             snprintf(buf, sizeof(buf), "yang test 11111111111 thread id: %u, active_ts : %lu", 
@@ -858,6 +872,16 @@ thread_run(void *arg)
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
+        __wt_sleep(0, 110000);//yang add change 
+        {//3333333333333
+             char buf[100];
+             snprintf(buf, sizeof(buf), "yang test 444444444444 thread id: %u, active_ts : %lu", 
+                 td->threadnum, active_ts);
+
+             
+             ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
+             WT_UNUSED(ret);
+        }
 
         /*
          * Save the timestamps and key separately for checking later. Optionally use our third

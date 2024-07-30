@@ -238,6 +238,7 @@ struct __wt_txn_op {
 /*
  * upd is pointing to same memory in both op_row and op_col, so for simplicity just chose op_row upd
  */
+//¸³Öµ²Î¿¼__wt_txn_modify
 #undef op_upd
 #define op_upd op_row.upd
 

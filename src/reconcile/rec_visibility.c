@@ -665,10 +665,12 @@ __rec_fill_tw_from_upd_select(
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
+  //  WT_DATA_HANDLE *dhandle;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
     select_tw = &upd_select->tw;
+ //   dhandle = session->dhandle;
 
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
@@ -693,6 +695,14 @@ __rec_fill_tw_from_upd_select(
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         WT_TIME_WINDOW_SET_STOP(select_tw, upd);
+        /*{//yang add change 
+            char ts_string[2][WT_TS_INT_STRING_SIZE];
+            __wt_verbose(session, WT_VERB_TIMESTAMP, "__rec_fill_tw_from_upd_select window-timestamp: durable_stop_ts %s, "
+            "stop_txn: %s", 
+                __wt_timestamp_to_string(select_tw->durable_stop_ts, ts_string[0]), 
+                __wt_timestamp_to_string(select_tw->stop_txn, ts_string[1]));
+        }*/
+
         tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
@@ -708,10 +718,17 @@ __rec_fill_tw_from_upd_select(
         }
     }
 
-    if (upd != NULL)
+    if (upd != NULL) {
         /* The beginning of the validity window is the selected update's time point. */
         WT_TIME_WINDOW_SET_START(select_tw, upd);
-    else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+        /*{//yang add change 
+            char ts_string[2][WT_TS_INT_STRING_SIZE];
+            __wt_verbose(session, WT_VERB_TIMESTAMP, "__rec_fill_tw_from_upd_select window-timestamp: durable_start_ts %s, "
+            "start_txn: %s, upd: %p, dhandle name:%s", 
+                __wt_timestamp_to_string(select_tw->durable_start_ts, ts_string[0]), 
+                __wt_timestamp_to_string(select_tw->start_txn, ts_string[1]), upd, dhandle->name);
+        }*/
+    } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
 
@@ -768,6 +785,13 @@ __rec_fill_tw_from_upd_select(
               "chain");
             upd_select->upd = last_upd->next;
             WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
+            /*{//yang add change 
+                char ts_string[2][WT_TS_INT_STRING_SIZE];
+                __wt_verbose(session, WT_VERB_TIMESTAMP, "__rec_fill_tw_from_upd_select window-timestamp: durable_start_ts %s, "
+                "start_txn: %s", 
+                    __wt_timestamp_to_string(select_tw->durable_start_ts, ts_string[0]), 
+                    __wt_timestamp_to_string(select_tw->start_txn, ts_string[1]));
+            }*/
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally
@@ -992,10 +1016,26 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
       !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
+    /*{//yang add change 
+        char ts_string[2][WT_TS_INT_STRING_SIZE];
+        __wt_verbose(session, WT_VERB_TIMESTAMP, "xxxxxx 1111111111 __rec_fill_tw_from_upd_select window-timestamp: durable_start_ts %s, "
+        "start_txn: %s", 
+            __wt_timestamp_to_string(upd_select->tw.durable_start_ts, ts_string[0]), 
+            __wt_timestamp_to_string(upd_select->tw.start_txn, ts_string[1]));
+    }*/
+
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
+
+  /*  {//yang add change 
+        char ts_string[2][WT_TS_INT_STRING_SIZE];
+        __wt_verbose(session, WT_VERB_TIMESTAMP, "xxxxxx 222 __rec_fill_tw_from_upd_select window-timestamp: durable_start_ts %s, "
+        "start_txn: %s", 
+            __wt_timestamp_to_string(upd_select->tw.durable_start_ts, ts_string[0]), 
+            __wt_timestamp_to_string(upd_select->tw.start_txn, ts_string[1]));
+    }*/
 
     return (0);
 }

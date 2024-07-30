@@ -625,6 +625,16 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             __wt_rec_image_copy(session, r, val);
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+        /*{//yang add change 
+            char ts_string[4][WT_TS_INT_STRING_SIZE];
+            __wt_verbose(session, WT_VERB_TIMESTAMP, "__rec_row_leaf_insert window-timestamp: newest_start_durable_ts %s, "
+            "newest_stop_durable_ts: %s, oldest_start_ts %s, newest_txn %s", 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_start_durable_ts, ts_string[0]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_stop_durable_ts, ts_string[1]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.oldest_start_ts, ts_string[2]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_txn, ts_string[3])
+                );
+        }*/
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -993,6 +1003,16 @@ slow:
             __wt_rec_image_copy(session, r, val);
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
+        /*{//yang add change 
+            char ts_string[4][WT_TS_INT_STRING_SIZE];
+            __wt_verbose(session, WT_VERB_TIMESTAMP, "__wti_rec_row_leaf window-timestamp: newest_start_durable_ts %s, "
+            "newest_stop_durable_ts: %s, oldest_start_ts %s, newest_txn %s", 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_start_durable_ts, ts_string[0]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_stop_durable_ts, ts_string[1]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.oldest_start_ts, ts_string[2]), 
+                __wt_timestamp_to_string(r->cur_ptr->ta.newest_txn, ts_string[3])
+                );
+        }*/
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);

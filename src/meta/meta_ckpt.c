@@ -1164,6 +1164,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int64_t)ckpt->run_write_gen));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
+  //  __wt_verbose(session, WT_VERB_TIMESTAMP,
+   //   "__wt_meta_ckptlist_to_meta: %s",(const char *)buf->data);
 
     return (0);
 }
@@ -1743,18 +1745,20 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
     WT_ERR(__meta_print_snapshot(session, valbuf));
     WT_ERR(__meta_sysinfo_update(
       session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, valbuf->data));
-      
-    __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
-      "saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
-      " snapshot count: %" PRIu32
-      ", oldest timestamp: %s , meta checkpoint timestamp: %s"
-      " base write gen: %" PRIu64,
-      txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
-      //__wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]), yang add todo xxxxxxxxxxxxxx hex_timestamp替换oldest_timestamp
-      __wt_timestamp_to_string(WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), ts_string[0]),
-      __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
-      conn->base_write_gen);
 
+    {
+        //yang add todo xxxxxxxxxxxx 可以加上uri
+        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+          "uri: %s, saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
+          " snapshot count: %" PRIu32
+          ", oldest timestamp: %s , meta checkpoint timestamp: %s"
+          " base write gen: %" PRIu64, name,
+          txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
+          //__wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]), yang add todo xxxxxxxxxxxxxx hex_timestamp替换oldest_timestamp
+          __wt_timestamp_to_string(WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), ts_string[0]),
+          __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
+          conn->base_write_gen);
+    }
     /*
      * Record the base write gen in metadata as part of full checkpoints.
      *
