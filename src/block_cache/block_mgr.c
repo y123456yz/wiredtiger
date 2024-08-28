@@ -164,6 +164,7 @@ __bm_checkpoint(
     WT_BLOCK *block;
 
     block = bm->block;
+    __wt_verbose(session, WT_VERB_TRANSACTION, "__bm_checkpoint config:%s", "");
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 

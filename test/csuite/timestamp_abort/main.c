@@ -70,14 +70,14 @@ static char home[1024]; /* Program working dir */
 
 #define INVALID_KEY UINT64_MAX
 #define MAX_BACKUP_INVL 4000 //4 /* Maximum interval between backups */
-#define MAX_CKPT_INVL 2   /* Maximum interval between checkpoints */
+#define MAX_CKPT_INVL 30// 20   /* Maximum interval between checkpoints */  //yang add change
 #define MAX_TH 200        /* Maximum configurable threads */
-#define MAX_TIME 40
+#define MAX_TIME 4000 //yang add change 
 #define MAX_VAL 100//1024 yang add change todo xxxxxxxxx
 #define MIN_TH 5
 #define MIN_TIME 10
 #define PREPARE_DURABLE_AHEAD_COMMIT 10
-#define PREPARE_FREQ 5
+#define PREPARE_FREQ  1//5
 #define PREPARE_PCT 10
 #define PREPARE_YIELD (PREPARE_FREQ * 10)
 #define RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "records-%" PRIu32
@@ -129,7 +129,7 @@ extern char *__wt_optarg;
 //注意这里的verbose我在testutil_wiredtiger_open修改了，会被覆盖掉
 #define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
-    "M,create,verbose=[rts:5,checkpoint_progress:5,timestamp:5,transaction:5,recovery:5, recovery_progress:5],"                                              \
+    "M,create,verbose=[evict:5,reconcile:5,rts:5,checkpoint_progress:5,timestamp:5,transaction:5,recovery:5, recovery_progress:5],"                                              \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
@@ -354,7 +354,7 @@ thread_ts_run(void *arg)
         if (ts == last_ts)
             continue;
         last_ts = ts;
-
+        
         /* Let the oldest timestamp lag 25% of the time. */
         rand_op = __wt_random(&td->extra_rnd) % 4;
         if (rand_op == 1) {
@@ -496,8 +496,11 @@ thread_ckpt_run(void *arg)
          */
         printf("Checkpoint %d start: Flush: %s.\r\n\r\n\r\n\r\n", i, flush_tier ? "YES" : "NO");
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
+
+        
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
+        //这里打印的stable也就是本次做checkpoint时候的last_ckpt_timestamp
         printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n\r\n\r\n\r\n\r\n", i,
           flush_tier ? "YES" : "NO", stable);
 
@@ -664,8 +667,8 @@ thread_run(void *arg)
      * transactions.
      */
     use_prep = (use_ts && td->threadnum % PREPARE_PCT == 0) ? true : false;
-    use_prep = false;//yang add change
-    //use_ts = false;//yang add change
+    use_prep = true;//yang add change  方便一个线程来测试
+    use_ts = true;//yang add change
     durable_ahead_commit = false;
 
     /*
@@ -675,6 +678,7 @@ thread_run(void *arg)
      * to test mixed logged and not-logged transactions.
      */
     testutil_check(td->conn->open_session(td->conn, NULL, "isolation=snapshot", &session));
+    //use_prep启用会多创建一个prepared_session
     if (use_prep)
         testutil_check(
           td->conn->open_session(td->conn, NULL, "isolation=snapshot", &prepared_session));
@@ -700,6 +704,7 @@ thread_run(void *arg)
           prepared_session->open_cursor(prepared_session, uri, NULL, NULL, &cur_local));
     else
         testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_local));
+        
     testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog);
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cur_oplog));
 
@@ -718,6 +723,10 @@ thread_run(void *arg)
      cur_local->insert
      444444444444444444
      */
+
+    //注意run_workload中，collection和shadow表没有启用oplog功能(log=(enabled=false)), local和oplog启用了oplog功能(log=(enabled=true))
+    //如果use_prep启用，注意oplog表是session管理，其他3个表由prepared_session管理
+
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->threadnum, td->start);
     active_ts = 0;
     for (i = td->start, iter = 0;; ++i, ++iter) {
@@ -761,7 +770,7 @@ thread_run(void *arg)
              ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
              WT_UNUSED(ret);
          }
-        __wt_sleep(0, 110000);//yang add change 
+        __wt_sleep(0, 110000);//yang add change  
         
 
         
@@ -818,6 +827,8 @@ thread_run(void *arg)
              */
             if (i % PREPARE_FREQ == 0) {
                 testutil_snprintf(tscfg, sizeof(tscfg), "prepare_timestamp=%" PRIx64, active_ts);
+                printf("yang test .................1............tscfg:%s\r\n", tscfg);
+                //注意这里面会释放快照
                 testutil_check(prepared_session->prepare_transaction(prepared_session, tscfg));
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
@@ -829,30 +840,31 @@ thread_run(void *arg)
                 testutil_snprintf(tscfg, sizeof(tscfg),
                   "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts,
                   durable_ahead_commit ? active_ts + 1 : active_ts);
+                printf("yang test ..............2...............tscfg:%s\r\n", tscfg);
             } else
                 testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts);
 
             testutil_check(prepared_session->commit_transaction(prepared_session, tscfg));
         }
 
-        
+         
         __wt_sleep(0, 110000);//yang add change 
         {//22222222222222
              char buf[100];
-             snprintf(buf, sizeof(buf), "yang test 22222222222 thread id: %u, active_ts : %lu", 
+             snprintf(buf, sizeof(buf), "yang test 333333333 thread id: %u, active_ts : %lu", 
                  td->threadnum, active_ts);
 
              ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
              WT_UNUSED(ret);
         }
-
+        
         testutil_check(session->commit_transaction(session, NULL));
 
         
         __wt_sleep(0, 110000);//yang add change 
         {//3333333333333
              char buf[100];
-             snprintf(buf, sizeof(buf), "yang test 333333333333 thread id: %u, active_ts : %lu", 
+             snprintf(buf, sizeof(buf), "yang test 4444444444444 thread id: %u, active_ts : %lu", 
                  td->threadnum, active_ts);
 
              
@@ -875,13 +887,40 @@ thread_run(void *arg)
         __wt_sleep(0, 110000);//yang add change 
         {//3333333333333
              char buf[100];
-             snprintf(buf, sizeof(buf), "yang test 444444444444 thread id: %u, active_ts : %lu", 
+             snprintf(buf, sizeof(buf), "yang test 555555555555 thread id: %u, active_ts : %lu", 
                  td->threadnum, active_ts);
 
              
              ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, buf);//yang add change
              WT_UNUSED(ret);
         }
+        exit(0);
+
+       /* {
+            __wt_verbose((WT_SESSION_IMPL *)session, WT_VERB_TRANSACTION, "yang test :%s", "1111111111111111111");
+            testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, i);
+            snprintf(kname, sizeof(kname), "yangyazhou test xxxxxxxxxxxxxxx");
+            for (int kk = 0; kk <= 10011000; kk++) {
+                data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+                data.data = lbuf;
+                
+                cur_local->set_key(cur_local, kname);
+                cur_local->set_value(cur_local, &data);
+
+                if ((ret = cur_local->update(cur_local)) != 0) {
+                    WT_UNUSED(ret);
+                    printf("yang test ............update failed\r\n");
+                }
+
+               // if (kk == 200) {
+               //     error_check(session->checkpoint(session, NULL));
+               //     __wt_sleep(2, 1110);
+               //     break;
+               // }
+            }
+            __wt_verbose((WT_SESSION_IMPL *)session, WT_VERB_TRANSACTION, "yang test :%s", "222222222222222222222");
+        }*/
+        
 
         /*
          * Save the timestamps and key separately for checking later. Optionally use our third
@@ -959,6 +998,7 @@ run_workload(uint32_t workload_iteration)
      * model from an earlier checkpoint and then rolling forward using the debug log, just from that
      * position.)
      */
+    cache_mb = 1;//yang add change
     testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG_BASE, cache_mb,
       verify_model ? "false" : "true", SESSION_MAX, STAT_WAIT);
 
@@ -1859,3 +1899,4 @@ main(int argc, char *argv[])
         testutil_cleanup(opts);
     return (ret);
 }
+

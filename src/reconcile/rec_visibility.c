@@ -527,6 +527,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
     seen_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
+        //__wt_verbose(session, WT_VERB_TRANSACTION, "__rec_upd_select:%lu  %lu", 
+        //    r->last_running, upd->txnid);
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 

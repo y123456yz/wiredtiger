@@ -25,7 +25,7 @@
 static int __block_append(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
-static int __block_extlist_dump(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
+//static int __block_extlist_dump(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 
 /*
@@ -735,6 +735,11 @@ __wti_block_extlist_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_
 
     alloc = ci->alloc.off[0];
     discard = ci->discard.off[0];
+    //yang add change todo xx
+    WT_RET(__block_extlist_dump(session, block, &ci->alloc, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &ci->avail, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &ci->discard, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &block->live.ckpt_avail, NULL, "write"));
 
     /* Walk the lists in parallel, looking for overlaps. */
     while (alloc != NULL && discard != NULL) {
@@ -753,6 +758,13 @@ __wti_block_extlist_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_
         /* Reconcile the overlap. */
         WT_RET(__block_ext_overlap(session, block, &ci->alloc, &alloc, &ci->discard, &discard));
     }
+
+    //yang add change todo xxxxxxxx  yang add todo xxxxxxxxxxx
+    WT_RET(__block_extlist_dump(session, block, &ci->alloc, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &ci->avail, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &ci->discard, NULL, "write"));
+    WT_RET(__block_extlist_dump(session, block, &block->live.ckpt_avail, NULL, "write"));
+
     return (0);
 }
 
@@ -1220,7 +1232,7 @@ corrupted:
         WT_ERR(func(session, block, el, off, size));
     }
 
-    WT_ERR(__block_extlist_dump(session, block, el, "read"));
+    WT_ERR(__block_extlist_dump(session, block, el, NULL, "read"));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -1243,7 +1255,7 @@ __wti_block_extlist_write(
     uint32_t entries;
     uint8_t *p;
 
-    WT_RET(__block_extlist_dump(session, block, el, "write"));
+    WT_RET(__block_extlist_dump(session, block, el, additional, "write"));
 
     /*
      * Figure out how many entries we're writing -- if there aren't any entries, there's nothing to
@@ -1275,8 +1287,11 @@ __wti_block_extlist_write(
     p = WT_BLOCK_HEADER_BYTE(dsk);
     /* Extent list starts */
     WT_ERR(__wt_extlist_write_pair(&p, WT_BLOCK_EXTLIST_MAGIC, 0));
-    WT_EXT_FOREACH (ext, el->off) /* Free ranges */
+    WT_EXT_FOREACH (ext, el->off) /* Free ranges */ {
+        printf("yang test .......__wti_block_extlist_write.........off:%d, size:%d\r\n", 
+            (int)ext->off, (int)ext->size);
         WT_ERR(__wt_extlist_write_pair(&p, ext->off, ext->size));
+    }
     if (additional != NULL)
         WT_EXT_FOREACH (ext, additional->off) /* Free ranges */
             WT_ERR(__wt_extlist_write_pair(&p, ext->off, ext->size));
@@ -1399,11 +1414,12 @@ __wti_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el)
  * __block_extlist_dump --
  *     Dump an extent list as verbose messages.
  */
-static int
-__block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, const char *tag)
+int
+__block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, WT_EXTLIST *additional, const char *tag)
 {
     WT_DECL_ITEM(t1);
     WT_DECL_ITEM(t2);
+    WT_DECL_ITEM(t3);
     WT_DECL_RET;
     WT_EXT *ext;
     WT_VERBOSE_LEVEL level;
@@ -1424,16 +1440,30 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
       "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
       __wt_buf_set_size(session, el->bytes, true, t1));
 
-    if (el->entries == 0)
+    if (el->entries == 0 && additional == NULL)
         goto done;
 
     memset(sizes, 0, sizeof(sizes));
-    WT_EXT_FOREACH (ext, el->off)
+    WT_ERR(__wt_scr_alloc(session, 0, &t3));
+    WT_ERR(__wt_buf_catfmt(session, t3, "el ext: "));
+    WT_EXT_FOREACH (ext, el->off) {
+        WT_ERR(__wt_buf_catfmt(session, t3, "[%" PRIu64 ", %" PRIu64 "] ", 
+            (long unsigned int)ext->off, (long unsigned int)(ext->off + ext->size)));
         for (i = 9, pow = 512;; ++i, pow *= 2)
             if (ext->size <= (wt_off_t)pow) {
                 ++sizes[i];
                 break;
             }
+    }
+
+    if (additional != NULL && additional->entries != 0) {
+        WT_ERR(__wt_buf_catfmt(session, t3, "additional ext: "));
+        WT_EXT_FOREACH (ext, additional->off) 
+            WT_ERR(__wt_buf_catfmt(session, t3, "[%" PRIu64 ", %" PRIu64 "] ", 
+                (long unsigned int)ext->off, (long unsigned int)(ext->off + ext->size)));
+    }
+    __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t3->data);
+    
     sep = "extents by bucket:";
     t1->size = 0;
     WT_ERR(__wt_scr_alloc(session, 0, &t2));
@@ -1450,6 +1480,7 @@ done:
 err:
     __wt_scr_free(session, &t1);
     __wt_scr_free(session, &t2);
+    __wt_scr_free(session, &t3);
     return (ret);
 }
 

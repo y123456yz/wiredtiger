@@ -199,6 +199,7 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
      * The internal checkpoint name is special, applications aren't allowed to use it. Be aggressive
      * and disallow any matching prefix, it makes things easier when checking in other places.
      */
+    //
     if (len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(name, WT_CHECKPOINT))
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"%s\" is reserved", WT_CHECKPOINT);
 
@@ -1731,18 +1732,25 @@ __drop(
      * it's one we want to drop.
      */
     if (strncmp(WT_CHECKPOINT, name, len) == 0) {
-        WT_CKPT_FOREACH (ckptbase, ckpt)
-            if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
+        WT_CKPT_FOREACH (ckptbase, ckpt) {
+            printf("yang test .........sss..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
+            if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
                 F_SET(ckpt, WT_CKPT_DELETE);
+                printf("yang test .........1..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
+            }
+        }
     } else
-        WT_CKPT_FOREACH (ckptbase, ckpt)
+        WT_CKPT_FOREACH (ckptbase, ckpt) {
+            printf("yang test .........sss 2..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
             if (WT_STRING_MATCH(ckpt->name, name, len)) {
                 /* Remember the names of named checkpoints we're dropping. */
                 if (drop_list != NULL)
                     WT_RET(__drop_list_add(session, drop_list, ckpt->name));
                 F_SET(ckpt, WT_CKPT_DELETE);
+                printf("yang test .......2................checkpoint name:%s %p, need to delete\r\n", ckpt->name, ckpt);
             }
-
+    }
+    
     return (0);
 }
 
@@ -1976,7 +1984,8 @@ __checkpoint_lock_dirty_tree(
      * assert condition in the unused macro.
      */
     WT_UNUSED(need_tracking);
-
+    printf("yang test .....__checkpoint_lock_dirty_tree........cfg[0]:%s, cfg[1]:%s\r\n",
+        cfg[0], cfg[1]);
     /*
      * Most callers need meta tracking to be on here, otherwise it is
      * possible for this checkpoint to cleanup handles that are still in
@@ -2264,6 +2273,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
+    char time_string[WT_TIME_STRING_SIZE];
 
     btree = S2BT(session);
 
@@ -2278,6 +2288,9 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->write_gen = btree->write_gen;
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
+           __wt_verbose(session, WT_VERB_TRANSACTION,
+                "yang add change  xxxxxxxxxx __wt_checkpoint_tree_reconcile_update:%s", 
+                __wt_time_aggregate_to_string(ta, time_string));
         }
 }
 

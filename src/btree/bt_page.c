@@ -138,6 +138,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     tombstone = upd = NULL;
     total_size = 0;
 
+    //printf("yang test .............__page_inmem_prepare_update................ \r\n");
     WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
     upd->durable_ts = unpack->tw.durable_start_ts;

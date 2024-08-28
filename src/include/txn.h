@@ -320,6 +320,7 @@ struct __wt_txn {
     /*
      * Timestamp copied into updates created by this transaction, when this transaction is prepared.
      */
+    //赋值见
     wt_timestamp_t prepare_timestamp;
 
     /*
@@ -371,9 +372,11 @@ struct __wt_txn {
 #define WT_TXN_HAS_SNAPSHOT 0x000008u
 #define WT_TXN_HAS_TS_COMMIT 0x000010u
 #define WT_TXN_HAS_TS_DURABLE 0x000020u
+//说明设置了"prepare_timestamp=xxxxx"，赋值见__txn_set_prepare_timestamp
 #define WT_TXN_HAS_TS_PREPARE 0x000040u
 #define WT_TXN_IGNORE_PREPARE 0x000080u
 #define WT_TXN_IS_CHECKPOINT 0x000100u
+//__wt_txn_prepare 说明是prepare txn
 #define WT_TXN_PREPARE 0x000200u
 #define WT_TXN_PREPARE_IGNORE_API_CHECK 0x000400u
 #define WT_TXN_READONLY 0x000800u

@@ -1917,6 +1917,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * transaction commits.
      */
     if (mod->inst_updates != NULL) {
+        __wt_verbose(session, WT_VERB_TRANSACTION, "cache_eviction_blocked_uncommitted_truncate :%s", "EBUSY");
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_uncommitted_truncate);
         return (false);
     }
@@ -2030,6 +2031,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
           (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) : F_ISSET(session, WT_SESSION_NO_RECONCILE)))
             WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
         else {
+            __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_page_release xxxxxxxx %s", "");
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);
         }

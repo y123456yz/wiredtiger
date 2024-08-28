@@ -48,7 +48,9 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Pages are usually small enough, check that first. */
     if (footprint < btree->splitmempage)
         return (false);
-
+    __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_page_in_func xxxxxxxx %u, %u, page:%p", 
+        (uint32_t)footprint, (uint32_t)btree->splitmempage, page);
+    
     /*
      * If this session has more than one hazard pointer, eviction will fail and there is no point
      * trying.
@@ -276,6 +278,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     btree = S2BT(session);
     txn = session->txn;
 
+    printf("yang test ...............__wt_page_in_func............... ref page:%p\r\n", ref->page);
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
@@ -407,6 +410,7 @@ read:
              */
             if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
+                __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_page_in_func xxxxxxxx %s", "");
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*
                  * If forced eviction succeeded, don't retry. If it failed, stall.

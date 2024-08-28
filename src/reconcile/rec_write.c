@@ -85,9 +85,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * permitted. The page's state could have changed while we were waiting to acquire the lock
      * (e.g., the page could have split).
      */
-    if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL))
+    if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL)) {
+        __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_reconcile :%s", "EBUSY");
         WT_ERR(__wt_set_return(session, EBUSY));
-
+    }
     /*
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
@@ -2052,6 +2053,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     verify_image = true;
 #endif
 
+    __wt_verbose(session, WT_VERB_RECONCILE, "__rec_split_write last_block: %d", last_block);
     /*
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
@@ -2116,6 +2118,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ASSERT_ALWAYS(
           session, r->supd_next == 0, "Attempting to write final block but further updates found");
 
+        __wt_verbose(session, WT_VERB_RECONCILE, "__rec_split_write rec_result page: %s", __wt_page_type_string(page->type));
         if (compressed_image == NULL)
             r->wrapup_checkpoint = &chunk->image;
         else {
@@ -2133,6 +2136,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         goto copy_image;
 
     /* Check the eviction flag as checkpoint also saves updates. */
+    __wt_verbose(session, WT_VERB_RECONCILE, "reconciled rec_result %d  %p", F_ISSET(r, WT_REC_EVICT), multi->supd);
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
@@ -2448,6 +2452,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
      */
+    //yang add change xxxxxxxxxxxxxxxxxxxxxxxx
+    __wt_verbose(session, WT_VERB_RECONCILE, "reconciled rec_result %" PRIu8, mod->rec_result);
     switch (mod->rec_result) {
     case 0: /*
              * The page has never been reconciled before, free the original

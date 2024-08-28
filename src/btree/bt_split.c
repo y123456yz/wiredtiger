@@ -1972,6 +1972,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * contents are consistent.
      */
     WT_RELEASE_BARRIER();
+    printf("yang test ....................split_ref[0].page:%p, split_ref[1].page:%p\r\n", 
+        split_ref[0]->page, split_ref[1]->page);
 
     /*
      * Split into the parent.

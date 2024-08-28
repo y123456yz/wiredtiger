@@ -347,6 +347,8 @@ __wt_update_obsolete_check(
     WT_UPDATE *first, *next;
     size_t size;
     u_int count;
+    static int golobal_test_count = 0;
+    golobal_test_count++;
 
     next = NULL;
     page = cbt->ref->page;
@@ -426,9 +428,15 @@ __wt_update_obsolete_check(
      */
     if (count > WT_THOUSAND) {
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
+        __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_update_obsolete_check 2:%u", count);
         __wt_page_evict_soon(session, cbt->ref);
     }
 
+   // if (golobal_test_count == 5) {
+   //      WT_IGNORE_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT, "__wt_update_serial")); //yang add change
+   //      WT_IGNORE_RET(__wt_verbose_dump_txn(session, "__wt_update_obsolete_check")); //yang add change xxxxxxxxxxxxxxx
+   // }
+    
     if (next != NULL)
         __wt_free_update_list(session, &next);
     else {
@@ -437,6 +445,7 @@ __wt_update_obsolete_check(
          * moved forwards.
          */
         if (count > 20) {
+            __wt_verbose(session, WT_VERB_TRANSACTION, "__wt_update_obsolete_check 1:%u", count);
             page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
             if (txn_global->has_pinned_timestamp)
                 page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;

@@ -520,6 +520,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
+        //__wt_verbose(session, WT_VERB_TRANSACTION, "__rec_row_leaf_insert 2:%p", upd_select.upd);
         if ((upd = upd_select.upd) == NULL) {
             /*
              * In cases where a page has grown so large we are trying to force evict it (there is
@@ -735,7 +736,7 @@ __wti_rec_row_leaf(
 
     /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
-
+    
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
         /*

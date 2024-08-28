@@ -495,6 +495,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags, const char* fun
     uint64_t prev_last_running, prev_metadata_pinned, prev_oldest_id;
     bool strict, wait;
 
+    //return (0); //yang add change xxxxxxxxxxxxxxx
     //WT_IGNORE_RET(__wt_verbose_dump_txn(session, "__wt_txn_update_oldest begin")); //yang add change xxxxxxxxxxxxxxx
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -582,7 +583,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags, const char* fun
         }
     }
     WT_UNUSED(func);
-    //WT_IGNORE_RET(__wt_verbose_dump_txn(session, func)); //yang add change xxxxxxxxxxxxxxx
+   // WT_IGNORE_RET(__wt_verbose_dump_txn(session, func)); //yang add change xxxxxxxxxxxxxxx
 done:
     __wt_writeunlock(session, &txn_global->rwlock);
     return (ret);
@@ -1319,6 +1320,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * of the key are resolved. The head of the update chain can also be null in the scenario that
      * we rolled back all associated updates in the previous iteration of this function.
      */
+    //printf("yang test add .......................prepare_state:%d\r\n", upd->prepare_state);
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
@@ -2200,6 +2202,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set transaction state to prepare. */
     F_SET(session->txn, WT_TXN_PREPARE);
 
+    {    
+         int ret = __wt_verbose_dump_txn((WT_SESSION_IMPL *)session, "__wt_txn_prepare");//yang add change
+         WT_UNUSED(ret);
+    }
     /* Release our snapshot in case it is keeping data pinned. */
     __wt_txn_release_snapshot(session);
 

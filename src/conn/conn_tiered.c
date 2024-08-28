@@ -485,6 +485,7 @@ err:
 /*
  * __wti_tiered_storage_create --
  *     Start the tiered storage subsystem.
+ //分层存储没有真正的线上使用  The WiredTiger Tiered Storage support has not been developed, tested or tuned in production scenarios, and should be viewed as experimental code.
  */
 int
 __wti_tiered_storage_create(WT_SESSION_IMPL *session)

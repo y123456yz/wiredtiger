@@ -1379,6 +1379,8 @@ extern int __wti_block_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, W
   wt_off_t ckpt_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_extlist_read_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el,
   wt_off_t ckpt_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int
+__block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, WT_EXTLIST *additional, const char *tag);
 extern int __wti_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_extlist_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el,

@@ -379,8 +379,8 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
     testutil_tiered_storage_configuration(
       opts, home, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s],verbose=[rts:5,checkpoint_progress:5,"
-    "timestamp:5,transaction:5,recovery:5, recovery_progress:5]", config == NULL ? "" : config,
+    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s],verbose=[split:5,write:0,evict:5, rts:5,checkpoint_progress:5,"
+    "timestamp:5,transaction:5,recovery:5, recovery_progress:5, reconcile:5]", config == NULL ? "" : config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
       tiered_cfg, tiered_ext_cfg);
 

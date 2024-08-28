@@ -754,7 +754,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * highly threaded workloads, that creates a bottleneck.
          */
         //__wt_verbose(session, WT_VERB_TRANSACTION, "%s", "yang test  __evict_pass");
-        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT, "__evict_pass"));
+        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT, "__evict_pass")); 
 
         if (!__evict_update_work(session))
             break;
