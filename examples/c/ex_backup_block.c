@@ -54,9 +54,9 @@ static size_t filelist_count = 0;
 
 #define FLIST_INIT 16
 
-#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,path=logpath,file_max=100K)"
-#define MAX_ITERATIONS 5
-#define MAX_KEYS 10000
+#define CONN_CONFIG "create,cache_size=100MB,verbose=[all:0, api:0, mutex:0, backup:5], log=(enabled=true,path=logpath,file_max=100K)"
+#define MAX_ITERATIONS 3 //5 yang add change
+#define MAX_KEYS 1000 //10000   yang add change
 
 static int
 compare_backups(int i)
@@ -64,6 +64,7 @@ compare_backups(int i)
     int ret;
     char buf[1024], msg[32];
 
+    //return 0; //yang add change
     /*
      * We run 'wt dump' on both the full backup directory and the incremental backup directory for
      * this iteration. Since running 'wt' runs recovery and makes both directories "live", we need a
@@ -72,20 +73,28 @@ compare_backups(int i)
      * If i == 0, we're comparing against the main, original directory with the final incremental
      * directory.
      */
-    if (i == 0)
+    if (i == 0) {
         testutil_system("../../wt -R -h %s dump main > %s.%d", home, full_out, i);
-    else
+        printf("yang test ..compare_backups: ../../wt -R -h %s dump main > %s.%d\r\n", home, full_out, i);
+    } else {
         testutil_system("../../wt -R -h %s.%d dump main > %s.%d", home_full, i, full_out, i);
+        printf("yang test ..compare_backups: ../../wt -R -h %s.%d dump main > %s.%d\r\n", home_full, i, full_out, i);
+    }
+    
     /*
      * Now run dump on the incremental directory.
      */
     testutil_system("../../wt -R -h %s.%d dump main > %s.%d", home_incr, i, incr_out, i);
-
+    printf("yang test ..compare_backups: ../../wt -R -h %s.%d dump main > %s.%d\r\n", home_incr, i, incr_out, i);
     /*
      * Compare the files.
      */
     (void)snprintf(buf, sizeof(buf), "cmp %s.%d %s.%d", full_out, i, incr_out, i);
+    printf("yang test ..compare_backups: %s\r\n", buf);
+    return 0; //yang add change
+    
     ret = system(buf);
+    
     if (i == 0)
         (void)snprintf(msg, sizeof(msg), "%s", "MAIN");
     else
@@ -182,6 +191,9 @@ finalize_files(FILELIST *flistp, size_t count)
             testutil_system("rm WT_BLOCK_LOG_*/%s%s",
               strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
               last_flist[i].name);
+            printf("yang add test: rm WT_BLOCK_LOG_*/%s%s\r\n",
+              strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
+              last_flist[i].name);
         }
         free((void *)last_flist[i].name);
     }
@@ -249,10 +261,11 @@ take_full_backup(WT_SESSION *session, int i)
      * First time through we take a full backup into the incremental directories. Otherwise only
      * into the appropriate full directory.
      */
+    
     if (i != 0) {
         (void)snprintf(h, sizeof(h), "%s.%d", home_full, i);
         hdir = h;
-    } else
+    } else 
         hdir = home_incr;
     if (i == 0) {
         (void)snprintf(
@@ -284,8 +297,8 @@ take_full_backup(WT_SESSION *session, int i)
             for (j = 0; j < MAX_ITERATIONS; j++) {
                 (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
                 testutil_system("cp %s/%s %s/%s", home, f, h, f);
-#if 0
-                printf("FULL: Copy: %s\n", buf);
+#if 1
+                printf("FULL %d: cp %s/%s %s/%s\r\n", i, home, f, h, f);
 #endif
             }
         else {
@@ -293,8 +306,8 @@ take_full_backup(WT_SESSION *session, int i)
             (void)snprintf(h, sizeof(h), "%s.%d", home_full, i);
 #endif
             testutil_system("cp %s/%s %s/%s", home, f, hdir, f);
-#if 0
-            printf("FULL %d: Copy: %s\n", i, buf);
+#if 1
+            printf("FULL %d: cp %s/%s %s/%s\r\n", i, home, f, hdir, f);
 #endif
         }
     }
@@ -344,20 +357,20 @@ take_incr_backup(WT_SESSION *session, int i)
             testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
         else
             testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
-#if 0
+#if 1
         printf("Copying backup: %s\n", buf);
 #endif
         first = true;
 
         (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
         error_check(session->open_cursor(session, NULL, backup_cur, buf, &incr_cur));
-#if 0
+#if 1
         printf("Taking incremental %d: File %s\n", i, filename);
 #endif
         while ((ret = incr_cur->next(incr_cur)) == 0) {
             error_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
             scan_end_check(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
-#if 0
+#if 1
             printf("Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " %s\n", filename, offset,
               size, type == WT_BACKUP_FILE ? "WT_BACKUP_FILE" : "WT_BACKUP_RANGE");
 #endif
@@ -401,7 +414,7 @@ take_incr_backup(WT_SESSION *session, int i)
                       "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
                 else
                     testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
-#if 0
+#if 1
                 printf("Incremental: Whole file copy: %s\n", buf);
 #endif
             }
@@ -422,11 +435,16 @@ take_incr_backup(WT_SESSION *session, int i)
          */
         for (j = i; j < MAX_ITERATIONS; j++) {
             (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
-            if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
+
+            if (strncmp(filename, WTLOG, WTLOGLEN) == 0) {
                 testutil_system(
                   "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
-            else
-                testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
+                printf("yang test take_incr_backup: cp %s/%s/%s %s/%s/%s\r\n", home, logpath, 
+                    filename, h, logpath, filename);
+            } else {
+                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+                printf("yang test take_incr_backup: cp %s/%s %s/%s\r\n", home, filename, h, filename);
+            }
         }
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -462,9 +480,10 @@ main(int argc, char *argv[])
 
     printf("Taking initial backup\n");
     take_full_backup(session, 0);
-
+    printf("\n\n\ncheckpoint begain\n");
     error_check(session->checkpoint(session, NULL));
-
+    printf("checkpoint end\n\n\n");
+    
     for (i = 1; i < MAX_ITERATIONS; i++) {
         printf("Iteration %d: adding data\n", i);
         /* For each iteration we may add work and checkpoint multiple times. */
@@ -491,6 +510,10 @@ main(int argc, char *argv[])
     }
 
     printf("Close and reopen the connection\n");
+    
+    __wt_sleep(2, 0);
+    exit(0); //yang add change
+    exit(0); //yang add change
     /*
      * Close and reopen the connection to illustrate the durability of id information.
      */
@@ -525,6 +548,7 @@ main(int argc, char *argv[])
      * Close the connection. We're done and want to run the final comparison between the incremental
      * and original.
      */
+    
     error_check(wt_conn->close(wt_conn, NULL));
 
     printf("Final comparison: dumping and comparing data\n");

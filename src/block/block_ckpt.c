@@ -293,7 +293,7 @@ __wt_block_checkpoint(
           &ci->root_checksum, data_checksum, true, false));
         ci->root_objectid = block->objectid;
     }
-    printf("yang test ........__wt_block_checkpoint.............root_objectid:%d\r\n", (int)ci->root_objectid);
+   // printf("yang test ........__wt_block_checkpoint.............root_objectid:%d\r\n", (int)ci->root_objectid);
 
     /*
      * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
@@ -369,7 +369,7 @@ __ckpt_extlist_fblocks(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el
      * list is used to decide if the file can be truncated, and we can't truncate any part of the
      * file that contains a previous checkpoint's extents.
      */
-    printf("yang test ......__ckpt_extlist_fblocks.......[%d, %d]\r\n", (int)el->offset, (int)el->size);
+   // printf("yang test ......__ckpt_extlist_fblocks.......[%d, %d]\r\n", (int)el->offset, (int)el->size);
     return (__wti_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
 }
 
@@ -610,8 +610,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      */
     deleting = false;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        printf("yang test ....__ckpt_process.......... checkpoint name:%s  %d   %d  %d\r\n", 
-            ckpt->name, F_ISSET(ckpt, WT_CKPT_FAKE), F_ISSET(ckpt, WT_CKPT_DELETE), F_ISSET(ckpt, WT_CKPT_ADD));
+       // printf("yang test ....__ckpt_process.......... checkpoint name:%s  %d   %d  %d\r\n", 
+        //    ckpt->name, F_ISSET(ckpt, WT_CKPT_FAKE), F_ISSET(ckpt, WT_CKPT_DELETE), F_ISSET(ckpt, WT_CKPT_ADD));
         if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
 
@@ -670,8 +670,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size = ci->ckpt_size;
     ckpt_size += ci->alloc.bytes;
     ckpt_size -= ci->discard.bytes;
-    printf("yang test ....__ckpt_process.......... befor ckpt_size:%d  %d   %d  %d\r\n", 
-        (int)ci->ckpt_size, (int)ci->alloc.bytes, (int)ci->discard.bytes, (int)ckpt_size);
+    //printf("yang test ....__ckpt_process.......... befor ckpt_size:%d  %d   %d  %d\r\n", 
+    //    (int)ci->ckpt_size, (int)ci->alloc.bytes, (int)ci->discard.bytes, (int)ckpt_size);
     /*
      * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
@@ -733,10 +733,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          * Free the blocks used to hold the "from" checkpoint's extent lists, including the avail
          * list.
          */
-        printf("yang test ....__ckpt_process..........__ckpt_extlist_fblocks.............\r\n"); 
+       // printf("yang test ....__ckpt_process..........__ckpt_extlist_fblocks.............\r\n"); 
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->alloc));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->avail));
-         printf("yang test ....__ckpt_process....2......__ckpt_extlist_fblocks.............\r\n"); 
+       //  printf("yang test ....__ckpt_process....2......__ckpt_extlist_fblocks.............\r\n"); 
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
 
         /*
@@ -764,9 +764,9 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          * Find blocks for re-use: wherever the "to" checkpoint's allocate and discard lists
          * overlap, move the range to the live system's checkpoint available list.
          */
-        printf("yang test ....__ckpt_process.......1...__wti_block_extlist_overlap.............\r\n"); 
+       // printf("yang test ....__ckpt_process.......1...__wti_block_extlist_overlap.............\r\n"); 
         WT_ERR(__wti_block_extlist_overlap(session, block, b));
-        printf("yang test ....__ckpt_process.......2...__wti_block_extlist_overlap.............\r\n"); 
+      //  printf("yang test ....__ckpt_process.......2...__wti_block_extlist_overlap.............\r\n"); 
 
         /*
          * If we're updating the live system's information, we're done.
@@ -781,7 +781,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          * Free the blocks used to hold the "to" checkpoint's extent lists; don't include the avail
          * list, it's not changing.
          */
-        printf("yang test ....__ckpt_process......xxxx....__ckpt_extlist_fblocks.............\r\n"); 
+      //  printf("yang test ....__ckpt_process......xxxx....__ckpt_extlist_fblocks.............\r\n"); 
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->alloc));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->discard));
 
@@ -790,7 +790,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        printf("yang test ....__ckpt_process....__ckpt_update...... checkpoint name:%s  \r\n", ckpt->name);
+       // printf("yang test ....__ckpt_process....__ckpt_update...... checkpoint name:%s  \r\n", ckpt->name);
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
     }
@@ -889,12 +889,12 @@ __ckpt_update(
     if (is_live)
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
-    printf("\r\nyang test ....__ckpt_update.........1..........\r\n");
+  //  printf("\r\nyang test ....__ckpt_update.........1..........\r\n");
     WT_RET(__block_extlist_dump(session, block, &ci->alloc, NULL, "write"));
     WT_RET(__block_extlist_dump(session, block, &ci->avail, NULL, "write"));
     WT_RET(__block_extlist_dump(session, block, &ci->discard, NULL, "write"));
     WT_RET(__block_extlist_dump(session, block, &block->live.ckpt_avail, NULL, "write"));
-    printf("yang test ....__ckpt_update.........2..........\r\n\r\n");
+  //  printf("yang test ....__ckpt_update.........2..........\r\n\r\n");
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check the extent list combinations for overlaps. */
@@ -945,14 +945,14 @@ __ckpt_update(
      * completes. We can't merge that second list into the real list yet, it's not truly available
      * until the new checkpoint locations have been saved to the metadata.
      */
-    printf("yang test .............__ckpt_update..............1......\r\n");
+   // printf("yang test .............__ckpt_update..............1......\r\n");
     if (is_live) {
         block->final_ckpt = ckpt;
         ret = __wti_block_extlist_write(session, block, &ci->avail, &ci->ckpt_avail);
         block->final_ckpt = NULL;
         WT_RET(ret);
     }
-    printf("yang test .............__ckpt_update..............2......\r\n");
+   // printf("yang test .............__ckpt_update..............2......\r\n");
     /*
      * Record the blocks allocated to write the extent lists. We must record blocks in the live
      * system's extent lists, as those blocks are a necessary part of the checkpoint a hot backup

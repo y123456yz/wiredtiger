@@ -278,7 +278,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     btree = S2BT(session);
     txn = session->txn;
 
-    printf("yang test ...............__wt_page_in_func............... ref page:%p\r\n", ref->page);
+   // printf("yang test ...............__wt_page_in_func............... ref page:%p\r\n", ref->page);
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 

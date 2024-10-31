@@ -408,7 +408,7 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     TAILQ_FOREACH (ndsrc, &S2C(session)->dsrcqh, q) {
         dsrc = ndsrc->dsrc;
         if (dsrc->checkpoint != NULL) {
-            printf("yang test ............__checkpoint_data_source.....................\r\n");
+            //printf("yang test ............__checkpoint_data_source.....................\r\n");
             WT_RET(dsrc->checkpoint(dsrc, (WT_SESSION *)session, (WT_CONFIG_ARG *)cfg));
         }
     }
@@ -876,8 +876,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
 
-            printf("yang test .......__checkpoint_prepare............checkpoint_timestamp:%lx, "
-                "checkpoint_timestamp:%lx\r\n", txn_global->checkpoint_timestamp, txn_global->meta_ckpt_timestamp);
+           // printf("yang test .......__checkpoint_prepare............checkpoint_timestamp:%lx, "
+           //     "checkpoint_timestamp:%lx\r\n", txn_global->checkpoint_timestamp, txn_global->meta_ckpt_timestamp);
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
     } else {
@@ -1139,7 +1139,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Avoid doing work if possible. */
     WT_RET(__txn_checkpoint_can_skip(session, cfg, &full, &use_timestamp, &can_skip));
-    printf("yang test ...........__txn_checkpoint............full:%d, can_skip:%d\r\n", full, can_skip);
+   // printf("yang test ...........__txn_checkpoint............full:%d, can_skip:%d\r\n", full, can_skip);
     if (can_skip) {
         WT_STAT_CONN_INCR(session, checkpoint_skipped);
         return (0);
@@ -1344,7 +1344,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_scr_free(session, &session->ckpt_drop_list);
     }
 
-    printf("yang test ...........__txn_checkpoint............full:%d, name:%s\r\n", full, name);
+   // printf("yang test ...........__txn_checkpoint............full:%d, name:%s\r\n", full, name);
     if (full || name != NULL)
         WT_ERR(__wt_meta_sysinfo_set(session, full, name, namelen));
 
@@ -1733,21 +1733,21 @@ __drop(
      */
     if (strncmp(WT_CHECKPOINT, name, len) == 0) {
         WT_CKPT_FOREACH (ckptbase, ckpt) {
-            printf("yang test .........sss..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
+           // printf("yang test .........sss..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
             if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
                 F_SET(ckpt, WT_CKPT_DELETE);
-                printf("yang test .........1..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
+               // printf("yang test .........1..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
             }
         }
     } else
         WT_CKPT_FOREACH (ckptbase, ckpt) {
-            printf("yang test .........sss 2..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
+           // printf("yang test .........sss 2..............checkpoint name:%s  %p, need to delete\r\n", ckpt->name, ckpt);
             if (WT_STRING_MATCH(ckpt->name, name, len)) {
                 /* Remember the names of named checkpoints we're dropping. */
                 if (drop_list != NULL)
                     WT_RET(__drop_list_add(session, drop_list, ckpt->name));
                 F_SET(ckpt, WT_CKPT_DELETE);
-                printf("yang test .......2................checkpoint name:%s %p, need to delete\r\n", ckpt->name, ckpt);
+               // printf("yang test .......2................checkpoint name:%s %p, need to delete\r\n", ckpt->name, ckpt);
             }
     }
     
@@ -1984,8 +1984,8 @@ __checkpoint_lock_dirty_tree(
      * assert condition in the unused macro.
      */
     WT_UNUSED(need_tracking);
-    printf("yang test .....__checkpoint_lock_dirty_tree........cfg[0]:%s, cfg[1]:%s\r\n",
-        cfg[0], cfg[1]);
+   // printf("yang test .....__checkpoint_lock_dirty_tree........cfg[0]:%s, cfg[1]:%s\r\n",
+    //    cfg[0], cfg[1]);
     /*
      * Most callers need meta tracking to be on here, otherwise it is
      * possible for this checkpoint to cleanup handles that are still in

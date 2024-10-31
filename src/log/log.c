@@ -430,7 +430,7 @@ __wt_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
         /*
          * If we get to the end of the log, we can skip recovery.
          */
-        printf("yang test .........__wt_log_needs_recovery.......ret:%d\r\n", ret);
+       // printf("yang test .........__wt_log_needs_recovery.......ret:%d\r\n", ret);
         if (ret == WT_NOTFOUND) {
             *recp = false;
             ret = 0;

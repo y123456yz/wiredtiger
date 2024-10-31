@@ -1288,8 +1288,8 @@ __wti_block_extlist_write(
     /* Extent list starts */
     WT_ERR(__wt_extlist_write_pair(&p, WT_BLOCK_EXTLIST_MAGIC, 0));
     WT_EXT_FOREACH (ext, el->off) /* Free ranges */ {
-        printf("yang test .......__wti_block_extlist_write.........off:%d, size:%d\r\n", 
-            (int)ext->off, (int)ext->size);
+       //printf("yang test .......__wti_block_extlist_write.........off:%d, size:%d\r\n", 
+         //   (int)ext->off, (int)ext->size);
         WT_ERR(__wt_extlist_write_pair(&p, ext->off, ext->size));
     }
     if (additional != NULL)
