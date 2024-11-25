@@ -2910,7 +2910,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session, const char *func_name)
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    //return 0;//yang add change
+    return 0;//yang add change
 
     WT_ERR(__wt_scr_alloc(session, 20480, &snapshot_buf));
     

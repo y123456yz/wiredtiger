@@ -71,6 +71,7 @@ testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, int id, b
           copy_from, sizeof(copy_from), "%s" DIR_DELIM_STR "%s", home_dir, filename);
         testutil_snprintf(copy_to, sizeof(copy_to), "%s" DIR_DELIM_STR "%s", backup_dir, filename);
         testutil_copy(copy_from, copy_to);
+        printf("yang test ...testutil_backup_create_full: cp %s %s\r\n", copy_from, copy_to);
     }
     testutil_assert(ret == WT_NOTFOUND);
 

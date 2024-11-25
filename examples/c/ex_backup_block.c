@@ -49,14 +49,15 @@ typedef struct __filelist {
     bool exist;
 } FILELIST;
 
+static int g_yang_test_count = 0;
 static FILELIST *last_flist = NULL;
 static size_t filelist_count = 0;
 
 #define FLIST_INIT 16
 
-#define CONN_CONFIG "create,cache_size=100MB,verbose=[all:0, api:0, mutex:0, backup:5], log=(enabled=true,path=logpath,file_max=100K)"
-#define MAX_ITERATIONS 3 //5 yang add change
-#define MAX_KEYS 1000 //10000   yang add change
+#define CONN_CONFIG "create,cache_size=100MB,verbose=[all:5, api:0, metadata:0,mutex:0, backup:5,block:5,reconcile:5], log=(enabled=true,path=logpath,file_max=100K)"
+#define MAX_ITERATIONS 5 //5 yang add change
+#define MAX_KEYS 10000 //10000   yang add change
 
 static int
 compare_backups(int i)
@@ -64,7 +65,7 @@ compare_backups(int i)
     int ret;
     char buf[1024], msg[32];
 
-    //return 0; //yang add change
+    return 0; //yang add change
     /*
      * We run 'wt dump' on both the full backup directory and the incremental backup directory for
      * this iteration. Since running 'wt' runs recovery and makes both directories "live", we need a
@@ -145,6 +146,7 @@ add_work(WT_SESSION *session, int iter, int iterj)
     WT_CURSOR *cursor, *cursor2;
     int i;
     char k[64], v[64];
+    (void)(iterj);
 
     error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
     /*
@@ -158,8 +160,11 @@ add_work(WT_SESSION *session, int iter, int iterj)
      * Perform some operations with individual auto-commit transactions.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        //(void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);g_yang_test_count
+        //(void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        (void)snprintf(k, sizeof(k), "key.%d", g_yang_test_count);
+        (void)snprintf(v, sizeof(v), "value.%d", g_yang_test_count);
+        g_yang_test_count++;
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         error_check(cursor->insert(cursor));
@@ -173,6 +178,47 @@ add_work(WT_SESSION *session, int iter, int iterj)
     if (cursor2 != NULL)
         error_check(cursor2->close(cursor2));
 }
+
+static void
+add_work2(WT_SESSION *session, int iter, int iterj)
+{
+    WT_CURSOR *cursor, *cursor2;
+    int i;
+    char k[64], v[64];
+    (void)(iterj);
+
+    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    /*
+     * Only on even iterations add content to the extra table. This illustrates and shows that
+     * sometimes only some tables will be updated.
+     */
+    cursor2 = NULL;
+    if (iter % 2 == 0)
+        error_check(session->open_cursor(session, uri2, NULL, NULL, &cursor2));
+    /*
+     * Perform some operations with individual auto-commit transactions.
+     */
+    for (i = 0; i < 1; i++) {
+        //(void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);g_yang_test_count
+        //(void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        (void)snprintf(k, sizeof(k), "key.%d", g_yang_test_count);
+        (void)snprintf(v, sizeof(v), "value.%d", g_yang_test_count);
+        g_yang_test_count++;
+        cursor->set_key(cursor, k);
+        cursor->set_value(cursor, v);
+        error_check(cursor->insert(cursor));
+        printf("yang test .............add_work2...........g_yang_test_count:%d\r\n", g_yang_test_count);
+        if (cursor2 != NULL) {
+            cursor2->set_key(cursor2, k);
+            cursor2->set_value(cursor2, v);
+            error_check(cursor2->insert(cursor2));
+        }
+    }
+    error_check(cursor->close(cursor));
+    if (cursor2 != NULL)
+        error_check(cursor2->close(cursor2));
+}
+
 
 static int
 finalize_files(FILELIST *flistp, size_t count)
@@ -191,7 +237,7 @@ finalize_files(FILELIST *flistp, size_t count)
             testutil_system("rm WT_BLOCK_LOG_*/%s%s",
               strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
               last_flist[i].name);
-            printf("yang add test: rm WT_BLOCK_LOG_*/%s%s\r\n",
+            printf("yang add 9999999 test: rm WT_BLOCK_LOG_*/%s%s\r\n",
               strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
               last_flist[i].name);
         }
@@ -269,7 +315,7 @@ take_full_backup(WT_SESSION *session, int i)
         hdir = home_incr;
     if (i == 0) {
         (void)snprintf(
-          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=\"ID%d\")", i);
+          buf, sizeof(buf), "incremental=(granularity=32KB ,enabled=true,this_id=\"ID%d\")", i);
         error_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
@@ -290,7 +336,7 @@ take_full_backup(WT_SESSION *session, int i)
         else
             (void)snprintf(f, sizeof(f), "%s", filename);
 
-        if (i == 0)
+        if (i == 0)//0的时候为增量数据的基准数据，因此拷贝到inc目录
             /*
              * Take a full backup into each incremental directory.
              */
@@ -353,28 +399,37 @@ take_incr_backup(WT_SESSION *session, int i)
         error_check(backup_cur->get_key(backup_cur, &filename));
         error_check(process_file(&flist, &count, &alloc, filename));
         (void)snprintf(h, sizeof(h), "%s.0", home_incr);
-        if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
+        if (strncmp(filename, WTLOG, WTLOGLEN) == 0) {
             testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
-        else
+            printf("yang test 11111111 Incremental: cp %s/%s/%s %s/%s/%s\n", home, logpath, filename, h, logpath, filename);
+        } else {
             testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
-#if 1
-        printf("Copying backup: %s\n", buf);
-#endif
+            printf("yang test 22222222 Incremental: cp %s/%s %s/%s\n", home, filename, h, filename);
+        }
+
         first = true;
 
         (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
+//yang add change移动位置
+#if 1
+                printf("33333333 Copying backup: %s\n", buf);
+#endif
+
+        //注意这里相比普通open_cursor多了一个backup_cur参数，同时会返回一个新的incr_cur
         error_check(session->open_cursor(session, NULL, backup_cur, buf, &incr_cur));
 #if 1
-        printf("Taking incremental %d: File %s\n", i, filename);
+        printf("44444444444 Taking incremental Iteration %d: File %s\n", i, filename);
 #endif
         while ((ret = incr_cur->next(incr_cur)) == 0) {
+            //返回增量的
             error_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
             scan_end_check(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
 #if 1
-            printf("Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " %s\n", filename, offset,
+            printf("555555 Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " %s\n", filename, offset,
               size, type == WT_BACKUP_FILE ? "WT_BACKUP_FILE" : "WT_BACKUP_RANGE");
 #endif
-            if (type == WT_BACKUP_RANGE) {
+            if (type == WT_BACKUP_RANGE) {//文件的一部分内容
+               printf("yang test ............WT_BACKUP_RANGE......\r\n\r\n");
                 /*
                  * We should never get a range key after a whole file so the read file descriptor
                  * should be valid. If the read descriptor is valid, so is the write one.
@@ -393,6 +448,7 @@ take_incr_backup(WT_SESSION *session, int i)
                     first = false;
                 }
 
+                printf("yang test ...........read:%s/%s, write:%s.%d/%s\r\n", home, filename, home_incr, i, filename);
                 /*
                  * Don't use the system checker for lseek. The system check macro uses an int which
                  * is often 4 bytes and checks for any negative value. The offset returned from
@@ -405,15 +461,18 @@ take_incr_backup(WT_SESSION *session, int i)
                     testutil_die(errno, "lseek: write");
                 /* Use the read size since we may have read less than the granularity. */
                 error_sys_check(write(wfd, tmp, rdsize));
-            } else {
+            } else {//整个文件
                 /* Whole file, so close both files and just copy the whole thing. */
                 testutil_assert(first == true);
                 rfd = wfd = -1;
-                if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
+                if (strncmp(filename, WTLOG, WTLOGLEN) == 0) {
                     testutil_system(
                       "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
-                else
+                    printf("yang test 6666666 Incremental: cp %s/%s/%s %s/%s/%s\n", home, logpath, filename, h, logpath, filename);
+                } else {
                     testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
+                    printf("yang test 77777777 Incremental: cp %s/%s %s/%s\n", home, filename, h, filename);
+                }
 #if 1
                 printf("Incremental: Whole file copy: %s\n", buf);
 #endif
@@ -439,11 +498,11 @@ take_incr_backup(WT_SESSION *session, int i)
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0) {
                 testutil_system(
                   "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
-                printf("yang test take_incr_backup: cp %s/%s/%s %s/%s/%s\r\n", home, logpath, 
+                printf("yang test 888888 take_incr_backup: cp %s/%s/%s %s/%s/%s\r\n", home, logpath, 
                     filename, h, logpath, filename);
             } else {
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
-                printf("yang test take_incr_backup: cp %s/%s %s/%s\r\n", home, filename, h, filename);
+                printf("yang test 999999 take_incr_backup: cp %s/%s %s/%s\r\n", home, filename, h, filename);
             }
         }
     }
@@ -478,26 +537,29 @@ main(int argc, char *argv[])
     printf("Adding initial data\n");
     add_work(session, 0, 0);
 
-    printf("Taking initial backup\n");
-    take_full_backup(session, 0);
     printf("\n\n\ncheckpoint begain\n");
     error_check(session->checkpoint(session, NULL));
     printf("checkpoint end\n\n\n");
+
+    printf("Taking initial backup\n");
+    take_full_backup(session, 0);
+
     
     for (i = 1; i < MAX_ITERATIONS; i++) {
-        printf("Iteration %d: adding data\n", i);
+        printf("\n\n\n\nIteration %d: adding data\n", i);
         /* For each iteration we may add work and checkpoint multiple times. */
-        for (j = 0; j < i; j++) {
-            add_work(session, i, j);
+        //for (j = 0; j < i; j++) { //yang add change
+            j=0;//yang add change
+            add_work2(session, i, j);
             error_check(session->checkpoint(session, NULL));
-        }
+        //}
 
         /*
          * The full backup here is only needed for testing and comparison purposes. A normal
          * incremental backup procedure would not include this.
          */
-        printf("Iteration %d: taking full backup\n", i);
-        take_full_backup(session, i);
+       // printf("Iteration %d: taking full backup\n", i);
+       // take_full_backup(session, i);
         /*
          * Taking the incremental backup also calls truncate to remove the log files, if the copies
          * were successful. See that function for details on that call.
@@ -510,14 +572,15 @@ main(int argc, char *argv[])
     }
 
     printf("Close and reopen the connection\n");
-    
+    error_check(wt_conn->close(wt_conn, NULL));
     __wt_sleep(2, 0);
     exit(0); //yang add change
     exit(0); //yang add change
+
     /*
      * Close and reopen the connection to illustrate the durability of id information.
      */
-    error_check(wt_conn->close(wt_conn, NULL));
+    
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
 
@@ -579,3 +642,121 @@ main(int argc, char *argv[])
 
     return (EXIT_SUCCESS);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+#define ONE_TERABYTE (1024LL * 1024LL * 1024LL * 1024LL) // 定义1T字节数
+
+// 填充文件内容的函数
+void fillFile(FILE *fp) {
+    char buffer[4096]; // 缓冲区大小，可根据需要调整
+    memset(buffer, 'A', sizeof(buffer)); // 用字符 'A' 填充缓冲区
+
+    long long written = 0;
+    while (written < ONE_TERABYTE) {
+        size_t bytesWritten = fwrite(buffer, 1, sizeof(buffer), fp);
+        if (bytesWritten == 0) {
+            perror("fwrite");
+            break;
+        }
+        written += bytesWritten;
+    }
+}
+
+// 拷贝文件的函数
+void copyFile(const char *source, const char *destination) {
+    FILE *sourceFile = fopen(source, "rb");
+    if (sourceFile == NULL) {
+        perror("fopen source");
+        return;
+    }
+
+    FILE *destinationFile = fopen(destination, "wb");
+    if (destinationFile == NULL) {
+        fclose(sourceFile);
+        perror("fopen destination");
+        return;
+    }
+
+    char buffer[4096];
+    size_t bytesRead;
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), sourceFile)) > 0) {
+        if (fwrite(buffer, 1, bytesRead, destinationFile)!= bytesRead) {
+            perror("fwrite during copy");
+            break;
+        }
+    }
+
+    fclose(sourceFile);
+    fclose(destinationFile);
+}
+
+// 确保目录存在，如果不存在则创建
+int ensureDirectoryExists(const char *directory) {
+    char command[1024];
+    snprintf(command, sizeof(command), "mkdir -p %s", directory);
+    return system(command);
+}
+
+int main() {
+    const char *directory1 = "目录1";
+    const char *directory2 = "目录2";
+
+    // 确保目录1存在
+    if (ensureDirectoryExists(directory1)!= 0) {
+        fprintf(stderr, "无法创建目录1: %s\n", strerror(errno));
+        return 1;
+    }
+
+    // 确保目录2存在
+    if (ensureDirectoryExists(directory2)!= 0) {
+        fprintf(stderr, "无法创建目录2: %s\n", strerror(errno));
+        return 1;
+    }
+
+    // 在目录1创建文件并写入数据
+    char filePath1[1024];
+    snprintf(filePath1, sizeof(filePath1), "%s/your_file.txt", directory1);
+    FILE *fp = fopen(filePath1, "wb");
+    if (fp == NULL) {
+        perror("fopen");
+        return 1;
+    }
+
+    fillFile(fp);
+
+    fclose(fp);
+
+    // 拷贝文件到另一个目录
+    char filePath2[1024];
+    snprintf(filePath2, sizeof(filePath2), "%s/your_file.txt", directory2);
+    copyFile(filePath1, filePath2);
+
+    return 0;
+}
+

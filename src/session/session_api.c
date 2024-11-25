@@ -2458,7 +2458,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
      */
     WT_ERR(__wt_txn_context_check(session, false));
 
-    printf("yang test ....__session_checkpoint...............r\n");
+   // printf("yang test ....__session_checkpoint...............r\n");
     ret = __wt_txn_checkpoint(session, cfg, true);
 
     /*

@@ -671,9 +671,9 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     WT_RET(__recovery_set_checkpoint_timestamp(r));
     WT_RET(__recovery_set_oldest_timestamp(r));
 
-    printf("yang test ........1...__recovery_txn_setup_initial_state..............%d %d\r\n", 
-        conn->txn_global.oldest_is_pinned,
-        conn->txn_global.stable_is_pinned);
+    //printf("yang test ........1...__recovery_txn_setup_initial_state..............%d %d\r\n", 
+    //    conn->txn_global.oldest_is_pinned,
+    //    conn->txn_global.stable_is_pinned);
 
     /*
      * Now that timestamps extracted from the checkpoint metadata have been configured, configure
@@ -690,9 +690,9 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     if (conn->txn_global.stable_timestamp != WT_TS_NONE)
         conn->txn_global.has_stable_timestamp = true;
 
-    printf("yang test ........2...__recovery_txn_setup_initial_state..............%d %d\r\n", 
-        conn->txn_global.oldest_is_pinned,
-        conn->txn_global.stable_is_pinned);
+    //printf("yang test ........2...__recovery_txn_setup_initial_state..............%d %d\r\n", 
+    //    conn->txn_global.oldest_is_pinned,
+    //    conn->txn_global.stable_is_pinned);
     WT_IGNORE_RET(__wt_verbose_dump_txn(session, "__recovery_txn_setup_initial_state")); //yang add change xxxxxxxxxxxxxxx
 
     return (0);
@@ -946,7 +946,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
-    printf("yang test ....__wt_txn_recover......config:%s\r\n", config);
+    //printf("yang test ....__wt_txn_recover......config:%s\r\n", config);
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
     metafile = &r.files[WT_METAFILE_ID];
@@ -967,7 +967,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          * logging in the log file number that is larger than any checkpoint LSN we have from the
          * earlier time.
          */
-        printf("yang test ..........__wt_txn_recover.....1............ was_backup:%d\r\n", was_backup);
+       // printf("yang test ..........__wt_txn_recover.....1............ was_backup:%d\r\n", was_backup);
         WT_ERR(__recovery_file_scan(&r));
         /*
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
@@ -997,7 +997,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * system records with incremental IDs. So the first pass may recover only backup information or
      * metadata (and also backup information).
      */
-    printf("yang test ..........__wt_txn_recover................. was_backup:%d\r\n", was_backup);
+    //printf("yang test ..........__wt_txn_recover................. was_backup:%d\r\n", was_backup);
     if (was_backup) {
         r.metadata_only = false;
         r.backup_only = true;

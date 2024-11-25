@@ -423,7 +423,7 @@ __wt_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
              */
             WT_ERR(c->get_value(
               c, &dummy_txnid, &rectype, &dummy_optype, &dummy_fileid, &dummy_key, &dummy_value));
-            printf("yang test .........__wt_log_needs_recovery.......rectype:%u\r\n", rectype);
+            //printf("yang test .........__wt_log_needs_recovery.......rectype:%u\r\n", rectype);
             if (rectype == WT_LOGREC_COMMIT)
                 break;
         }

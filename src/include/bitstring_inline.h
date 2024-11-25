@@ -131,6 +131,7 @@ __bit_nclr(uint8_t *bitf, uint64_t start, uint64_t stop)
 /*
  * __bit_nset --
  *	Set bits start-to-stop in name.
+ //把bitf的start到stop的位全部置位
  */
 static WT_INLINE void
 __bit_nset(uint8_t *bitf, uint64_t start, uint64_t stop)

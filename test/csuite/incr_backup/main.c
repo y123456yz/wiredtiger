@@ -40,10 +40,10 @@
 #define BACKUP_SRC "backup.src."
 
 #define ITERATIONS 10
-#define MAX_NTABLES 100
+//#define MAX_NTABLES 1 //yang add change
 
 #define MAX_KEY_SIZE 100
-#define MAX_VALUE_SIZE (10 * WT_THOUSAND)
+#define MAX_VALUE_SIZE (10 * 10)
 #define MAX_MODIFY_ENTRIES 10
 #define MAX_MODIFY_DIFF 500
 
@@ -225,25 +225,29 @@ table_changes(WT_SESSION *session, TABLE *table)
     WT_MODIFY modify_entries[MAX_MODIFY_ENTRIES];
     OPERATION_TYPE op_type;
     uint64_t change_count;
-    uint32_t i, nrecords;
+    uint32_t i;
+    uint32_t nrecords;
     int modify_count;
     u_char *value, *value2;
     char key[MAX_KEY_SIZE];
+    static uint32_t g_nrecords = 0;
 
     /*
      * We change each table in use about half the time.
      */
-    if (__wt_random(&table->rand) % 2 == 0) {
+    if (1) {  //yang add change
+    //if (__wt_random(&table->rand) % 2 == 0) {
         value = dcalloc(1, table->max_value_size);
         value2 = dcalloc(1, table->max_value_size);
-        nrecords = __wt_random(&table->rand) % WT_THOUSAND;
+        nrecords = 10000;
         VERBOSE(4, "changing %" PRIu32 " records in %s\n", nrecords, table->name);
         testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
-        for (i = 0; i < nrecords; i++) {
+        for (i = g_nrecords; i < nrecords; i++) {
             change_count = table->change_count++;
             item.data = value;
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
+
             cur->set_key(cur, key);
 
             /*
@@ -381,6 +385,8 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_IN
         consolidate = true;
     else
         consolidate = false;
+        
+    granularity_kb = 32 * 1024; //yang add change xxxxxxxx
     /* Use the same ID for the directory name and configuration */
     testutil_backup_create_full(conn, home, id, consolidate, granularity_kb, &nfiles);
     VERBOSE(2, " finished base backup: %d files\n", nfiles);
@@ -488,6 +494,7 @@ check_table(WT_SESSION *session, TABLE *table)
  * check_backup --
  *     Verify the backup to make sure the proper tables exist and have the correct content.
  */
+//检查备份的数据和我们写入的数据是否一样
 static void
 check_backup(uint32_t backup_iter, TABLE_INFO *tinfo)
 {
@@ -534,7 +541,8 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     WT_FILE_COPY_OPTS copy_opts;
     WT_SESSION *session;
     TABLE_INFO tinfo;
-    uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
+    uint32_t file_max, iter, max_value_size, rough_size, slot;
+    static int next_checkpoint = 1;
     const char *backup_verbose;
     int ncheckpoints, nreopens;
     char backup_src[1024], conf[1024], home[1024];
@@ -586,7 +594,7 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    tinfo.table_count = __wt_random(rnd) % MAX_NTABLES + 1;
+    tinfo.table_count = 1;//__wt_random(rnd) % MAX_NTABLES + 1;
     tinfo.table = dcalloc(tinfo.table_count, sizeof(tinfo.table[0]));
 
     /*
@@ -600,7 +608,11 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     }
 
     /* How many files should we update until next checkpoint. */
-    next_checkpoint = __wt_random(rnd) % tinfo.table_count;
+    printf("yang test ........................tinfo.table_count:%d\r\n", (int)tinfo.table_count);
+    //next_checkpoint = __wt_random(rnd) % tinfo.table_count;
+
+    printf("yang test ...... table name:%s\r\n", tinfo.table[tinfo.table_count - 1].name);
+    create_table(session, rnd, &tinfo, tinfo.table_count - 1);
 
     for (iter = 0; iter < ITERATIONS; iter++) {
         VERBOSE(1, "**** iteration %" PRIu32 " ****\n", iter);
@@ -609,7 +621,9 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
          * We have schema changes during about half the iterations. The number of schema changes
          * varies, averaging 10.
          */
-        if (tinfo.tables_in_use == 0 || __wt_random(rnd) % 2 != 0) {
+
+        
+        if (0) { //(tinfo.tables_in_use == 0 || __wt_random(rnd) % 2 != 0) {
             while (__wt_random(rnd) % 10 != 0) {
                 /*
                  * For schema events, we choose to create or drop tables. We pick a random slot, and
@@ -624,17 +638,23 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
             }
         }
         for (slot = 0; slot < tinfo.table_count; slot++) {
+            //修改表中的数据
             if (TABLE_VALID(&tinfo.table[slot]))
                 table_changes(session, &tinfo.table[slot]);
-            if (next_checkpoint-- == 0) {
+                
+            //yang add change xxxxxxxxxxxx 每两次都强制做一轮checkpoint
+            //if (next_checkpoint-- == 0) {
+            if (next_checkpoint % 3 == 0) {
                 VERBOSE(2, "Checkpoint %d\n", ncheckpoints);
                 testutil_check(session->checkpoint(session, NULL));
-                next_checkpoint = __wt_random(rnd) % tinfo.table_count;
+               // next_checkpoint = __wt_random(rnd) % tinfo.table_count;
                 ncheckpoints++;
             }
         }
+        
         /* Close and reopen the connection once in a while. */
-        if (iter != 0 && __wt_random(rnd) % 5 == 0) {
+        //if (iter != 0 && __wt_random(rnd) % 5 == 0) { //yang add change  不让进来
+        if (iter != 0 && __wt_random(rnd) % 500 == 0) {
             VERBOSE(2, "Close and reopen the connection %d\n", nreopens);
             testutil_check(conn->close(conn, NULL));
             testutil_snprintf(backup_src, sizeof(backup_src), BACKUP_SRC "%" PRIu32, iter);
@@ -650,19 +670,20 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
             nreopens++;
         }
 
-        if (iter == 0) {
+        if (iter == 0) {//全量备份
             VERBOSE(2, "Iteration %" PRIu32 ": taking full backup\n", iter);
             tinfo.full_backup_number = iter;
             base_backup(conn, rnd, WT_HOME_DIR, &tinfo);
+            //检查备份的数据和我们写入的数据是否一样
             check_backup(iter, &tinfo);
         } else {
             /* Randomly restart with a full backup again. */
-            if (__wt_random(rnd) % 10 == 0) {
+            if (__wt_random(rnd) % 5 == 0) {//不定期在来一次全量备份
                 VERBOSE(2, "Iteration %" PRIu32 ": taking new full backup\n", iter);
                 tinfo.full_backup_number = iter;
                 base_backup(conn, rnd, WT_HOME_DIR, &tinfo);
                 check_backup(iter, &tinfo);
-            } else {
+            } else {//增量备份
                 VERBOSE(2, "Iteration %" PRIu32 ": taking incremental backup\n", iter);
                 tinfo.incr_backup_number = iter;
                 incr_backup(conn, WT_HOME_DIR, &tinfo);

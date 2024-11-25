@@ -153,6 +153,7 @@ take_full_backup(WT_SESSION *session, int i)
         hdir = h;
     } else
         hdir = home_incr;
+        
     error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
