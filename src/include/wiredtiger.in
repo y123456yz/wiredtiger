@@ -1056,6 +1056,8 @@ struct __wt_session {
      * "clear"\, \c "size"\, \c "tree_walk"; default empty.}
      * @config{target, if non-empty\, back up the given list of objects; valid only for a backup
      * data source., a list of strings; default empty.}
+     * @config{target_exclude, if non-empty\, exclude the given list of objects; valid only for a
+     * backup data source., a string; default empty.}
      * @configend
      * @param[out] cursorp a pointer to the newly opened cursor
      * @errors

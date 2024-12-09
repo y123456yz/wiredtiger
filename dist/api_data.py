@@ -1688,6 +1688,8 @@ methods = {
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),
+    Config('target_exclude', '', r'''
+        if non-empty, exclude the given list of objects; valid only for a backup data source'''),
 ]),
 
 'WT_SESSION.query_timestamp' : Method([

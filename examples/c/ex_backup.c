@@ -38,9 +38,10 @@ static const char *const full_out = "./backup_full";
 static const char *const incr_out = "./backup_incr";
 
 static const char *const uri = "table:logtest";
+static const char *const uri2 = "table:logtest2";
 
 #define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false)"
-#define MAX_ITERATIONS 5
+#define MAX_ITERATIONS 1
 #define MAX_KEYS 10000
 
 static int
@@ -134,6 +135,20 @@ add_work(WT_SESSION *session, int iter)
         error_check(cursor->insert(cursor));
     }
     error_check(cursor->close(cursor));
+
+
+    error_check(session->open_cursor(session, uri2, NULL, NULL, &cursor));
+    /*
+     * Perform some operations with individual auto-commit transactions.
+     */
+    for (i = 0; i < MAX_KEYS; i++) {
+        (void)snprintf(k, sizeof(k), "key.%d.%d", iter, i);
+        (void)snprintf(v, sizeof(v), "value.%d.%d", iter, i);
+        cursor->set_key(cursor, k);
+        cursor->set_value(cursor, v);
+        error_check(cursor->insert(cursor));
+    }
+    error_check(cursor->close(cursor));
 }
 
 static void
@@ -153,7 +168,7 @@ take_full_backup(WT_SESSION *session, int i)
         hdir = h;
     } else
         hdir = home_incr;
-    error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, "backup:", NULL, "target_exclude=\"table:logtest2\"", &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &filename));
@@ -225,12 +240,15 @@ main(int argc, char *argv[])
     setup_directories();
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
     error_check(session->create(session, uri, "key_format=S,value_format=S"));
+    error_check(session->create(session, uri2, "key_format=S,value_format=S"));
     printf("Adding initial data\n");
     add_work(session, 0);
 
     printf("Taking initial backup\n");
     take_full_backup(session, 0);
+    exit(0);
 
+    
     error_check(session->checkpoint(session, NULL));
 
     for (i = 1; i < MAX_ITERATIONS; i++) {

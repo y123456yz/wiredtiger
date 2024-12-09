@@ -233,6 +233,8 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     }
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
+    if (cb->target_exclude != NULL)
+        __wt_free(session, cb->target_exclude);
 
     return (__wti_curbackup_free_incr(session, cb));
 }
@@ -635,6 +637,17 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         incremental_config = true;
     }
 
+    WT_ERR(__wt_config_gets(session, cfg, "target_exclude", &cval));
+    if (cval.len != 0) {
+        if (cval.len <= strlen("table:"))
+            WT_ERR_MSG(session, EINVAL, "target_exclude length error");
+
+        if (strncmp(cval.data, "table:", strlen("table:")) != 0)
+            WT_ERR_MSG(session, EINVAL, "target_exclude must begin with \"table:\"");
+        
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->target_exclude));
+    }
+
     /*
      * If we find a non-empty target configuration string, we have a job, otherwise it's not our
      * problem.
@@ -965,6 +978,52 @@ __backup_all(WT_SESSION_IMPL *session)
     return (__wt_meta_apply_all(session, NULL, __backup_list_uri_append, NULL));
 }
 
+static char*
+__get_url_name_by_eliminate_prefix(WT_SESSION_IMPL *session, const char *uri)
+{
+    size_t prefix_len = 0;
+    char *no_prefix_uri = NULL;
+    WT_DECL_RET;
+    
+    switch (uri[0]) {
+    /*
+     * Common cursor types.
+     */
+    case 'l': //"lsm:"
+        prefix_len = 4;
+        break;
+    case 'f': //"file:"
+        prefix_len = 5;
+        break;   
+    case 'i': //"index:"
+        prefix_len = 6;
+        break;   
+    case 'o': //"object:"
+    case 's': //"system:"
+        prefix_len = 7;
+        break; 
+    case 'c': //"colgroup:"
+        prefix_len = 9;
+        break; 
+    case 't': //"tier:", "table:", "tiered:"
+        if (uri[1] == 'a')  // "table:"
+            prefix_len = 6; 
+        else if (uri[5] == 'd') // "tiered:"
+            prefix_len = 7;
+        else //"tier:"
+            prefix_len = 5;
+        break; 
+    default:
+        return NULL;
+    }
+    
+    ret = __wt_strndup(session, uri + prefix_len, strlen(uri) - prefix_len, &no_prefix_uri);
+    if (ret != 0)
+        return NULL;
+        
+    return no_prefix_uri;
+}
+
 /*
  * __backup_list_uri_append --
  *     Append a new file name to the list, allocate space as necessary. Called via the schema_worker
@@ -976,6 +1035,10 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     char *value;
+    size_t table_head_len;
+    char *no_prefix_uri = NULL;;
+
+    table_head_len = strlen("table:");
 
     cb = session->bkp_cursor;
     WT_UNUSED(skip);
@@ -993,24 +1056,42 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
       !WT_PREFIX_MATCH(name, "tiered:"))
         WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
 
+    no_prefix_uri = __get_url_name_by_eliminate_prefix(session, name);
+    if (no_prefix_uri == NULL)
+        WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
+        
     /* Add the metadata entry to the backup file. */
-    WT_RET(__wt_metadata_search(session, name, &value));
-    ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);
-    __wt_free(session, value);
-    WT_RET(ret);
+    if (cb->target_exclude == NULL 
+        || strncmp(no_prefix_uri, cb->target_exclude + table_head_len, 
+            WT_MIN(strlen(no_prefix_uri), strlen(cb->target_exclude) - table_head_len)) != 0) {
+        WT_ERR(__wt_metadata_search(session, name, &value));
+        ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);
+        __wt_free(session, value);
+        WT_ERR(ret);
+    }
 
     /*
      * We want to retain the system information in the backup metadata file above, but there is no
      * file object to copy so return now.
      */
     if (WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX))
-        return (0);
+        goto end;
 
     /* Add file type objects to the list of files to be copied. */
-    if (WT_PREFIX_MATCH(name, "file:"))
+    if (WT_PREFIX_MATCH(name, "file:")) {
+        if (cb->target_exclude != NULL 
+            && strncmp(no_prefix_uri, cb->target_exclude + table_head_len, 
+                WT_MIN(strlen(no_prefix_uri), strlen(cb->target_exclude) - table_head_len)) == 0) {
+            goto end;
+        }
         WT_RET(__backup_list_append(session, cb, name));
+    }
 
-    return (0);
+end:
+err:
+    __wt_free(session, no_prefix_uri);
+
+    return (ret);
 }
 
 /*
