@@ -642,8 +642,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (cval.len <= strlen("table:"))
             WT_ERR_MSG(session, EINVAL, "target_exclude length error");
 
-        if (strncmp(cval.data, "table:", strlen("table:")) != 0)
-            WT_ERR_MSG(session, EINVAL, "target_exclude must begin with \"table:\"");
+        /*if (strncmp(cval.data, "table:", strlen("table:")) != 0)
+            WT_ERR_MSG(session, EINVAL, "target_exclude must begin with \"table:\"");*/
         
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->target_exclude));
     }
