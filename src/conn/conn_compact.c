@@ -172,6 +172,7 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
 /*
  * __background_compact_list_remove --
  *     Remove and free compaction statistics for a file from the background compact list.
+ 从stat_hash[]这个hash桶中删除compact_stat->id这条记录
  */
 static void
 __background_compact_list_remove(
@@ -194,6 +195,7 @@ __background_compact_list_remove(
  * __background_compact_get_stat --
  *     Get the statistics for the given uri and id. The id ensures uniqueness in the event of
  *     dropping and recreating files of the same name.
+ //根据uri和id从stat_hash[]桶中查找对应的compact_stat成员信息
  */
 static WT_BACKGROUND_COMPACT_STAT *
 __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t id)
@@ -212,13 +214,14 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
     /* Find the uri in the files compacted list. */
     TAILQ_FOREACH_SAFE(
       compact_stat, &conn->background_compact.stat_hash[bucket], hashq, temp_compact_stat)
-    {
+    {   //一般删除一个表，然后创建一个同样的表，这时候uri一样，但是id不一样
         if (strcmp(uri, compact_stat->uri) == 0) {
             /*
              * If we've found an entry in the list with the same URI but different IDs we must've
              * dropped and recreated this table. Reset the entry in this case.
              */
             if (id != compact_stat->id) {
+                // 从stat_hash[]这个hash桶中删除compact_stat->id这条记录
                 __background_compact_list_remove(session, compact_stat, bucket);
                 return (NULL);
             }
@@ -235,7 +238,9 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
  *     Check whether we should proceed with calling compaction on the given file.
  */
 static int
-__background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int64_t id, bool *skipp)
+__background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int64_t id, 
+//返回值skipp代表是否需要对uri做compact
+bool *skipp)
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
@@ -256,6 +261,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     /* Fast path to check the file size, ignore small files. */
     filename = uri;
     WT_PREFIX_SKIP(filename, "file:");
+    //获取.wt文件大小
     ret = __wt_block_manager_named_size(session, filename, &file_size);
 
     /* Ignore the error if the file no longer exists or in case of permission issues. */
@@ -266,6 +272,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
 
     WT_RET(ret);
 
+    //小于1M的文件跳过
     if (file_size <= WT_MEGABYTE) {
         WT_STAT_CONN_INCR(session, background_compact_skipped);
         *skipp = true;
@@ -273,6 +280,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     }
 
     /* If we haven't seen this file before we should try and compact it. */
+    //根据uri和id从stat_hash[]桶中查找对应的compact_stat成员信息
     compact_stat = __background_compact_get_stat(session, uri, id);
     if (compact_stat == NULL) {
         *skipp = false;
@@ -447,9 +455,25 @@ __background_compact_list_cleanup(
 /*
  * __background_compact_find_next_uri --
  *     Given a URI, find the next one in the metadata file that is eligible for compaction.
+
+ file:access.wt\00
+access_pattern_hint=none,allocation_size=4KB,app_metadata=,assert=(commit_timestamp=none,durable_timestamp=none,read_timestamp=none,
+write_timestamp=off),block_allocation=best,block_compressor=,cache_resident=false,checksum=on,collator=,columns=,dictionary=0,
+encryption=(keyid=,name=),format=btree,huffman_key=,huffman_value=,id=2,ignore_in_memory_cache_size=false,internal_item_max=0,
+internal_key_max=0,internal_key_truncate=true,internal_page_max=4KB,key_format=S,key_gap=10,leaf_item_max=0,leaf_key_max=0,
+leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0,
+os_cache_max=0,prefix_compression=false,prefix_compression_min=4,readonly=false,split_deepen_min_child=0,split_deepen_per_child=0,
+split_pct=90,tiered_object=false,tiered_storage=(auth_token=,bucket=,bucket_prefix=,cache_directory=,local_retention=300,name=,
+object_target_size=0),value_format=S,verbose=[],version=(major=2,minor=1),write_timestamp_usage=none,checkpoint=
+(WiredTigerCheckpoint.1=(addr="018181e48be73aa08281e41546bd168381e42c952646808080e22fc0cfc0",order=1,time=1691502308,size=8192,
+newest_start_durable_ts=0,oldest_start_ts=0,newest_txn=0,newest_stop_durable_ts=0,newest_stop_ts=-1,newest_stop_txn=-11,prepare=0,
+write_gen=3,run_write_gen=1)),checkpoint_backup_info=,checkpoint_lsn=(4294967295,2147483647)\00
  */
+//从元数据表wiredtiger.wt中查找uri的下一个可进行compact的表信息填充到next_uri后返回
 static int
-__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_uri)
+__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, 
+//下一个需要compact表通过next_uri返回
+WT_ITEM *next_uri)
 {
     WT_CONFIG_ITEM id;
     WT_CURSOR *cursor;
@@ -494,8 +518,10 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
              * on this file.
              */
             WT_ERR(cursor->get_value(cursor, &value));
+            //获取指定file:xxx.wt表中的"id="中的取值
             WT_ERR(__wt_config_getones(session, value, "id", &id));
             WT_ERR(__background_compact_should_skip(session, key, id.val, &skip));
+            //如果这个uri表需要做compact，则直接跳出循环，表示本次需要对这个表做compact操作
             if (!skip)
                 break;
         }
@@ -503,6 +529,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
     WT_ERR(ret);
 
     /* Save the selected uri. */
+    //这个被选择的uri表记录到next_uri
     WT_ERR(__wt_buf_set(session, next_uri, cursor->key.data, cursor->key.size));
 
 err:
@@ -514,6 +541,7 @@ err:
 /*
  * __background_compact_server --
  *     The compact server thread.
+ 启用compact backup功能后，通过__wt_background_compact_signal使能compact server线程
  */
 static WT_THREAD_RET
 __background_compact_server(void *arg)
@@ -538,7 +566,7 @@ __background_compact_server(void *arg)
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
-    for (;;) {
+    for (;;) {//每个循环选取wiredtiger.wt中的一个file:xxx.wt表来做compact操作
 
         /* If the server is configured to run once, stop it after a full iteration. */
         if (full_iteration && conn->background_compact.run_once) {
@@ -566,7 +594,9 @@ __background_compact_server(void *arg)
                 full_iteration = false;
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
-                __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
+                __background_compact_list_cleanup(session,
+                  conn->background_compact.run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
+                                                      BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
             if (cache_pressure) {
@@ -575,8 +605,10 @@ __background_compact_server(void *arg)
             }
 
             /* Check periodically in case the signal was missed. */
+            //这里等待其他线程通过compact backup配置启用backup compact功能，通过__wt_background_compact_signal使能compact server线程
             __wt_cond_wait(session, conn->background_compact.cond,
               conn->background_compact.full_iteration_wait_time * WT_MILLION,
+              //之前已经启用了compact backup功能，这里就会直接跳过该等待
               __background_compact_server_run_chk);
         }
 
@@ -619,16 +651,19 @@ __background_compact_server(void *arg)
          * does not generate additional updates.
          * - The cache content is almost at the eviction_trigger threshold.
          */
+        //注意这里没有做__wt_eviction_updates_needed的检查
         cache_pressure =
-          __wt_eviction_dirty_needed(session, NULL) || __wt_eviction_clean_needed(session, NULL);
+          __wt_evict_dirty_needed(session, NULL) || __wt_evict_clean_needed(session, NULL);
         if (cache_pressure)
             continue;
 
         /* Find the next URI to compact. */
+        //从元数据表wiredtiger.wt中查找uri的下一个可进行compact的表信息填充到next_uri后返回
+        //通过该for循环最终可以实现所有file:xxx.wt表都执行compact操作
         WT_ERR_NOTFOUND_OK(__background_compact_find_next_uri(session, uri, next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
-        if (ret == WT_NOTFOUND) {
+        if (ret == WT_NOTFOUND) {//说明所有表已经做了一轮compact
             full_iteration = true;
             continue;
         }
@@ -638,6 +673,7 @@ __background_compact_server(void *arg)
 
         /* Compact the file with the latest configuration. */
         __wt_spin_lock(session, &conn->background_compact.lock);
+        //拷贝background_compact.config配置信息到config，第一次进来或者mongo server修改了compact配置，则这里需要重新使用新的background_compact.config配置
         if (config->size == 0 ||
           !WT_STREQ((const char *)config->data, conn->background_compact.config))
             ret = __wt_buf_set(session, config, conn->background_compact.config,
@@ -646,6 +682,7 @@ __background_compact_server(void *arg)
 
         WT_ERR(ret);
 
+        //__wti_session_compact
         ret = wt_session->compact(wt_session, (const char *)uri->data, (const char *)config->data);
 
         /*
@@ -659,7 +696,7 @@ __background_compact_server(void *arg)
             WT_STAT_CONN_INCR(session, background_compact_fail);
             /* The following errors are always silenced. */
             if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
-                if (ret == EBUSY && __wt_cache_stuck(session))
+                if (ret == EBUSY && __wt_evict_cache_stuck(session))
                     WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
                 else if (ret == ETIMEDOUT)
                     WT_STAT_CONN_INCR(session, background_compact_timeout);
@@ -728,9 +765,10 @@ __wti_background_compact_server_create(WT_SESSION_IMPL *session)
 
     /*
      * Compaction does enough I/O it may be called upon to perform slow operations for the block
-     * manager.
+     * manager. Don't let the background compaction thread be pulled into eviction to limit
+     * performance impacts.
      */
-    session_flags = WT_SESSION_CAN_WAIT;
+    session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE;
     WT_RET(__wt_open_internal_session(
       conn, "compact-server", true, session_flags, 0, &conn->background_compact.session));
     session = conn->background_compact.session;
@@ -803,23 +841,26 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* Wait for any previous signal to be processed first. */
     __wt_spin_lock(session, &conn->background_compact.lock);
-    if (conn->background_compact.signalled) {
-        ret = EBUSY;
-        goto err;
-    }
+    if (conn->background_compact.signalled)
+        WT_ERR_MSG(session, EBUSY, "Background compact is busy processing a previous command");
 
     running = __wt_atomic_loadbool(&conn->background_compact.running);
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
     enable = cval.val;
 
+    printf("yang test ............config0:%s, config1:%s, config2:%s\r\n", cfg[0], cfg[1], cfg[2]);
+    
     /* Strip the toggle field from the configuration to check if the configuration has changed. */
+    //这里会把cfg中的"background="去掉，然后下次在__background_compact_server->__wti_session_compact的时候
+    //  就会在__wti_session_compact进入非backgroud模式进入真正的compact操作
     WT_ERR(__wt_config_merge(session, cfg, "background=", &stripped_config));
 
     /* The background compact configuration cannot be changed while it's already running. */
+    //如果真在搬迁填充碎片空间，则不允许修改
     if (enable && running && strcmp(stripped_config, conn->background_compact.config) != 0)
-        WT_ERR_MSG(
-          session, EINVAL, "Cannot reconfigure background compaction while it's already running.");
+        WT_ERR_SUB(session, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
+          "Cannot reconfigure background compaction while it's already running.");
 
     /* If we haven't changed states, we're done. */
     if (enable == running)
@@ -835,12 +876,15 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
         WT_ERR(__background_compact_exclude_list_process(session, config));
     }
 
+    printf("yang test ............stripped_config:%s\r\n", stripped_config);
+
     /* The background compaction has been signalled successfully, update its state. */
     __wt_atomic_storebool(&conn->background_compact.running, enable);
     __wt_free(session, conn->background_compact.config);
     conn->background_compact.config = stripped_config;
     stripped_config = NULL;
     conn->background_compact.signalled = true;
+    //通过该信号使能compact现场，见__background_compact_server
     __wt_cond_signal(session, conn->background_compact.cond);
 
 err:
@@ -848,3 +892,4 @@ err:
     __wt_spin_unlock(session, &conn->background_compact.lock);
     return (ret);
 }
+

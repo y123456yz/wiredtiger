@@ -183,7 +183,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= file_size / 10) {
         *skipp = false;
         *compact_pct_tenths_p = 1;
-    } else {
+    } else { //空洞小于10%直接跳过
         *skipp = true;
         *compact_pct_tenths_p = 0;
     }
@@ -231,6 +231,8 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
  * __block_compact_estimate_remaining_work --
  *     Estimate how much more work the compaction needs to do for the given file. The function
  *     assumes that enough pages have been reviewed for the statistics to be meaningful.
+ __compact_page_skip
+ 这里面预估后半段需要迁移的page数、需要迁移的磁盘空间等
  */
 static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
@@ -260,10 +262,12 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      * currently accounting for overflow pages, as compact does not currently account for them
      * either.
      */
+    //每个page的大小
     avg_block_size = (wt_off_t)WT_ALIGN(
       block->compact_bytes_reviewed / block->compact_pages_reviewed, block->allocsize);
 
     /* We don't currently have a way to track the internal page size, but this should be okay. */
+    //yang add todo xxxxxxxxxxxxx 这里最好用internal_page_max，因为internal_page_max是可配置的
     avg_internal_block_size = block->allocsize;
 
     /*
@@ -272,6 +276,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      * children, so that the number of higher-level internal nodes is small relative to the internal
      * nodes at the bottom.
      */
+    //也就是每个internal page下面的leaf page平均有多少个
     leaves_per_internal_page =
       (wt_off_t)(block->compact_pages_reviewed / block->compact_internal_pages_reviewed);
 
@@ -279,11 +284,14 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      * Estimate the size of a "depth 1" subtree consisting of one internal page and the
      * corresponding leaves.
      */
+    //预估出平均每个internal page及其下面的leaf page占用的空间总量
     depth1_subtree_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
+    //the average block size is 28672 bytes (based on 1000 blocks)
     __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
       avg_block_size, block->compact_pages_reviewed);
+    //reviewed 56 internal pages so far  
     __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: reviewed %" PRIu64 " internal pages so far", block->name,
       block->compact_internal_pages_reviewed);
@@ -307,15 +315,18 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     write_off = 0;
 
     /* Macro for estimating the number of leaf pages that can be stored within an extent. */
+    //预估ext_size这个块大小可以存储多少个internal及其下面的leaf page
 #define WT_EXT_SIZE_TO_LEAF_PAGES(ext_size)                                  \
     (uint64_t)((ext_size) / depth1_subtree_size * leaves_per_internal_page + \
       ((ext_size) % depth1_subtree_size) / avg_block_size)
 
     /* Now do the actual estimation, simulating one compact pass at a time. */
     for (iteration = 0;; iteration++) {
+        //wt文件末尾10%的起始位置
         compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
             break;
+        //estimating -- pass 0: file size: 87 MB (92270592B), compact offset: 83043533, will move blocks from the last 10% of the file
         __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: file size: %" PRId64 " MB (%" PRId64
           "B), compact offset: %" PRId64 ", will move blocks from the last %d%% of the file",
@@ -330,6 +341,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
          * by first estimating the number of pages that can fit in the inverse of the "available"
          * list, and then we subtract the number of pages determined from the "discard" list.
          */
+        //预估需要从文件后半段10%搬迁到前部空洞的page总数pages_to_move
+        //这里是从avail跳表的compact_start_off位置开始查找
         last = compact_start_off;
         WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, compact_start_off)
         {
@@ -341,9 +354,13 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (off >= compact_start_off && size <= 0)
                 break;
 
+            //后半部空洞以外的区间就是需要搬迁的真实page
             if (off > last) {
+                //[0ff, last]这个区间说明是需要搬迁的文件末尾的page，这个区间可能有多个page
                 n = WT_EXT_SIZE_TO_LEAF_PAGES(off - last);
                 pages_to_move += n;
+                //access0.wt: 2 pages to move between 83062784 and 83140608 
+                //这个提示这个区间大概有多少需要搬迁的page
                 __wt_verbose_debug3(session, WT_VERB_COMPACT,
                   "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
                   block->name, n, last, off);
@@ -355,7 +372,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         __wt_verbose_debug3(session, WT_VERB_COMPACT,
           "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
           block->name, n, last, file_size);
-
+        //这里是从avail跳表的compact_start_off位置开始查找
         WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.discard, compact_start_off)
         {
             off = ext->off;
@@ -368,6 +385,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
             n = WT_EXT_SIZE_TO_LEAF_PAGES(size);
             pages_to_move -= WT_MIN(n, pages_to_move);
+            //access0.wt: estimating -- 0 pages on discard list between 92155904 and 92172288
             __wt_verbose_debug3(session, WT_VERB_COMPACT,
               "%s: estimating -- %" PRIu64 " pages on discard list between %" PRId64
               " and %" PRId64,
@@ -378,6 +396,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
         /* Estimate where in the file we would be when we finish moving those pages. */
         pages_to_move_orig = pages_to_move;
+        //这里是从avail跳表的起始位置开始查找，也就是从文件头部开始查找，也就是预估文件前半段是否可以容纳前面统计的后半段需要搬迁的page
+        // 因为有可能后半段的某个page较大，前半段的空洞较小，这时候这个page就没办法搬迁了
         WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, write_off)
         {
             off = ext->off;
@@ -402,6 +422,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (pages_to_move > 0)
                 extra_space += size - rewrite_size;
         }
+        //access0.wt: estimating -- pass 0: will rewrite 267 pages, next write offset: 17348005, extra space: 637542
         __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
           ", extra space: %" PRId64,
@@ -429,6 +450,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     block->compact_bytes_rewritten_expected =
       block->compact_pages_rewritten_expected * (uint64_t)avg_block_size;
 
+    //access0.wt: expecting to move approx. 267 more pages (7MB), 268 total, target 1MB (1048576B)
     __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
       " total, target %" PRIu64 "MB (%" PRIu64 "B)",
@@ -587,6 +609,7 @@ __compact_page_skip(
      * worthwhile.
      */
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
+        // 这里面预估后半段需要迁移的page数、需要迁移的磁盘空间等
         __block_compact_estimate_remaining_work(session, block);
         /* If we're in dry run mode, exit compaction. */
         if (session->compact->dryrun)
@@ -680,7 +703,7 @@ __wt_block_compact_page_rewrite(
 
     discard_block = false;
     __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_4,
-      "%s: rewrite %" PRId64 " --> %" PRId64 " (%" PRIu32 "B)", block->name, offset, new_offset,
+      "%s: rewrite old-offset %" PRId64 " --> new-offset %" PRId64 " (%" PRIu32 "B)", block->name, offset, new_offset,
       size);
 
 err:
@@ -699,8 +722,15 @@ err:
  *     file).
  */
 static void
-__block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_t file_free,
-  uintmax_t bucket_size, uintmax_t bucket_free, u_int bucket_pct)
+__block_dump_bucket_stat(WT_SESSION_IMPL *session, 
+    //file_size: .wt文件总大小     //file_free: 空洞总字节数
+    uintmax_t file_size, uintmax_t file_free,
+    //bucket_size: 整个wt文件分成10段，每一段的长度
+    uintmax_t bucket_size,
+    //在i这个十分位范围内有多少字节碎片空间
+    uintmax_t bucket_free, 
+    //bucket_pct代表十分位段，i *10就代表是0   10  20  30 ..... 90
+    u_int bucket_pct)
 {
     uintmax_t bucket_used, free_pct, used_pct;
 
@@ -714,6 +744,12 @@ __block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_
 
     if (file_size > file_free)
         used_pct = (bucket_used * 100) / (file_size - file_free);
+
+    //(free: 59986944B, 10%)表示该十分位段内碎片空间大小，以及该段内碎片空间相比总碎片空间的占比      
+    //(used: 0MB, 0B, 0%)表示该十分位段内非碎片空间大小，以及该段内非碎片空间相比总非碎片空间的占比   
+    
+    //    [WT_VERB_COMPACT][DEBUG_2]: 80%:           57MB, (free: 59986944B, 10%), (used: 0MB, 0B, 0%)
+    //    [WT_VERB_COMPACT][DEBUG_2]: 90%:           57MB, (free: 59978240B, 9%), (used: 0MB, 8499B, 25%)
 
     __wt_verbose_debug2(session, WT_VERB_COMPACT,
       "%2u%%: %12" PRIuMAX "MB, (free: %" PRIuMAX "B, %" PRIuMAX "%%), (used: %" PRIuMAX
@@ -771,6 +807,12 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     memset(percentile, 0, sizeof(percentile));
     WT_EXT_FOREACH (ext, el->off)
         for (i = 0; i < ext->size / 512; ++i) {
+            //((ext->off + (wt_off_t)i * 512) * 10) / size = ((ext->off + (wt_off_t)i * 512) / size) * 10 
+            //例如也就是把1个文件size拆分为10段，ext->size按照512字节细分，计算这个ext以512字节为单位处于size中10段拆分的那一段
+            //  wt file size: 1-----------------------------12800-----------------------------25600-----------------------------------128000
+            //                     |     |      |     |
+            //ext(512-2046) :     512---1024---1536---2046  这个ext后decile[0]=4      
+            //
             ++decile[((ext->off + (wt_off_t)i * 512) * 10) / size];
             ++percentile[((ext->off + (wt_off_t)i * 512) * 100) / size];
         }
@@ -791,8 +833,17 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
      * There will be rounding error in the `used` stats because of the bucket size calculation.
      * Adding 5 to minimize the rounding error.
      */
+    //整个wt文件分成10段，每一段的长度
     bucket_size = (uintmax_t)((size + 5) / 10);
     for (i = 0; i < WT_ELEMENTS(decile); ++i)
-        __block_dump_bucket_stat(session, (uintmax_t)size, (uintmax_t)el->bytes, bucket_size,
+        __block_dump_bucket_stat(session, 
+            //.wt总文件大小
+            (uintmax_t)size, 
+            //空洞个数
+            (uintmax_t)el->bytes, 
+            //整个wt文件分成10段，每一段的长度
+            bucket_size,
+            //
           (uintmax_t)decile[i] * 512, i * 10);
 }
+
