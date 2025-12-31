@@ -1661,6 +1661,8 @@ extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_
 extern void __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session);
 extern void __wt_cond_auto_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress, bool (*run_func)(WT_SESSION_IMPL *));
+extern int __wt_merge_mark_parent_if_high_padding(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress,
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
 extern void __wt_conf_compile_discard(WT_SESSION_IMPL *session);

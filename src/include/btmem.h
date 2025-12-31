@@ -738,6 +738,7 @@ struct __wt_page {
 #define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
 #define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_HAS_HIGH_PADDING_CHILDREN 0x4000u /* Internal page has high-padding children */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
@@ -1161,9 +1162,12 @@ struct __wt_ref {
  * timing or race conditions, it cannot be guaranteed that the new change is included as part of the
  * reconciliation. The page would need to be reconciled again to ensure that these modifications are
  * included.
+ * 
+ * CRITICAL FIX: Added WT_REF_REC_MERGED state for page merge feature.
  */
 #define WT_REF_REC_CLEAN 0
 #define WT_REF_REC_DIRTY 1
+#define WT_REF_REC_MERGED 2  /* Page has been merged, skip in reconcile */
     wt_shared volatile uint8_t rec_state;
 
 /*

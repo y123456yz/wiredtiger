@@ -532,6 +532,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     bool build_delta, cell_zero_tmp, prev_dirty, retain_onpage;
+    bool merged, should_try_merge;
+    uint32_t skip_count;
     const void *p;
 
     btree = S2BT(session);
@@ -549,6 +551,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     ikey = NULL; /* -Wuninitialized */
     cell = NULL;
     build_delta = WT_BUILD_DELTA_INT(session, r);
+    
+    /* Check if this internal page should try merging adjacent pages */
+    should_try_merge = F_ISSET(r, WT_REC_CHECKPOINT) &&
+                       F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
 
     WT_RET(__wti_rec_split_init(session, r, 0, btree->maxintlpage_precomp));
     WT_RET(__rec_build_delta_int(session, r, build_delta));
@@ -570,6 +576,42 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         prev_dirty = __wt_atomic_cas_uint8_v(&ref->rec_state, WT_REF_REC_DIRTY, WT_REF_REC_CLEAN);
+
+        /*
+         * Try to merge adjacent high-padding pages if enabled.
+         */
+        if (should_try_merge) {
+            merged = false;
+            skip_count = 0;
+            
+            ret = __wt_merge_adjacent_pages(session, r, page, ref, &merged, &skip_count);
+            if (ret != 0) {
+                /* Merge failed, log and continue with normal reconcile */
+                __wt_verbose(session, WT_VERB_RECONCILE,
+                    "failed to merge adjacent pages: %s", wiredtiger_strerror(ret));
+                ret = 0;  /* Reset error, continue normal flow */
+            }
+            
+            if (merged) {
+                /* 
+                 * Merge succeeded! Current ref written to parent's disk image.
+                 * Subsequent skip_count refs marked as WT_REF_REC_MERGED.
+                 * Continue to next ref.
+                 */
+                r->cell_zero = false;
+                continue;
+            }
+        }
+        
+        /*
+         * CRITICAL FIX: Check if this ref was already merged by previous iteration.
+         * Use atomic rec_state instead of flags.
+         */
+        if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_MERGED) {
+            /* This ref was merged, skip it and reset state */
+            __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_CLEAN);
+            continue;
+        }
 
         /*
          * FIXME-WT-15709: build delta for split pages.
@@ -811,6 +853,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
     }
     WT_INTL_FOREACH_END;
+
+    /* Clear high-padding flag after processing */
+    if (should_try_merge)
+        F_CLR_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
 
     /* Write the remnant page. */
     return (__wti_rec_split_finish(session, r));

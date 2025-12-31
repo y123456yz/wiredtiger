@@ -189,6 +189,14 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 
         __wt_atomic_add_uint32_v(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
+        
+        /*
+         * OPTIMIZATION: Check if this leaf page has high padding and mark parent for merge.
+         * This is done opportunistically during checkpoint cleanup to avoid separate tree walks.
+         * The checkpoint cleanup's natural rate limiting (100 pages/btree) provides automatic
+         * throttling for merge marking.
+         */
+        WT_RET(__wt_merge_mark_parent_if_high_padding(session, ref));
     }
 
     return (0);
