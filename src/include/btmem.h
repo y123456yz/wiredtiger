@@ -341,6 +341,19 @@ struct __wt_ovfl_track {
 };
 
 /*
+ * WT_MERGE_FREE_ADDR --
+ *     Block address cookies to free after an eviction has safely updated the tree structure.
+ *
+ *     We store raw address cookies (not WT_ADDR pointers) so the list survives address format
+ *     differences (on-page vs off-page) and can be consumed after reconciliation.
+ */
+#define WT_MERGE_ADDR_MAX_COOKIE 255
+struct __wt_merge_free_addr {
+    uint8_t addr[WT_MERGE_ADDR_MAX_COOKIE];
+    uint8_t size;
+};
+
+/*
  * WT_PAGE_MODIFY --
  *	When a page is modified, there's additional information to maintain.
  */
@@ -474,6 +487,14 @@ struct __wt_page_modify {
 
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
+
+    /*
+     * Adjacent-leaf merge: blocks to free after a successful eviction installs the new internal
+     * page image into the live tree.
+     */
+    struct __wt_merge_free_addr *merge_free;
+    uint32_t merge_free_entries;
+    uint32_t merge_free_allocated;
 
     /*
      * Stop aggregated timestamp information when all the keys on the page are removed. This time

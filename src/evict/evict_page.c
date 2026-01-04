@@ -502,10 +502,37 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
               session, WT_DELTA_ENABLED_FOR_PAGE(session, ref->page->type) && ref->addr != NULL);
 
         /*
+         * If an adjacent-leaf merge was performed while reconciling this internal page for eviction,
+         * we may have a set of child leaf blocks that became unreachable once the new internal page
+         * image is installed. Hand them to the block manager now (it will delay reuse if any
+         * checkpoint still references them).
+         *
+         * This is best-effort: failures should not fail eviction after the tree structure has
+         * already been updated.
+         */
+        if (mod->merge_free_entries > 0 && mod->merge_free != NULL) {
+            uint32_t i;
+
+            for (i = 0; i < mod->merge_free_entries; ++i) {
+                int ret_free = __wt_btree_block_free(
+                  session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size);
+                if (ret_free != 0)
+                    __wt_verbose_error(session, WT_VERB_EVICTION,
+                      "failed to free merged child block during eviction: %s",
+                      wiredtiger_strerror(ret_free));
+            }
+
+            __wt_free(session, mod->merge_free);
+            mod->merge_free = NULL;
+            mod->merge_free_entries = 0;
+            mod->merge_free_allocated = 0;
+        }
+
+        /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
          */
-        if (mod->mod_disk_image == NULL) { 
+        if (mod->mod_disk_image == NULL) {
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);

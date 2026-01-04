@@ -552,9 +552,20 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     cell = NULL;
     build_delta = WT_BUILD_DELTA_INT(session, r);
     
-    /* Check if this internal page should try merging adjacent pages */
-    should_try_merge = F_ISSET(r, WT_REC_CHECKPOINT) &&
-                       F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
+    /*
+     * Try merging adjacent high-padding leaf blocks only during internal-page eviction reconcile
+     * (not during closing eviction), and only when the parent page has been explicitly marked as
+     * having adjacent high-padding children.
+     *
+     * Do not attempt merging for internal files like the history store or metadata.
+     *
+     * This must not instantiate children into cache: only consider WT_REF_DISK children and operate
+     * on their on-disk images/addresses.
+     */
+    should_try_merge = F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+      F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) &&
+      !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
+      !WT_IS_DISAGG_META(btree->dhandle);
 
     WT_RET(__wti_rec_split_init(session, r, 0, btree->maxintlpage_precomp));
     WT_RET(__rec_build_delta_int(session, r, build_delta));
@@ -579,8 +590,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /*
          * Try to merge adjacent high-padding pages if enabled.
+         * Only attempt merging when the current child is a leaf ref.
          */
-        if (should_try_merge) {
+        if (should_try_merge && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             merged = false;
             skip_count = 0;
             

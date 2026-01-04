@@ -3193,6 +3193,14 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
+    /* Discard any pending adjacent-merge free list on reconciliation error. */
+    if (page->modify != NULL && page->modify->merge_free != NULL) {
+        __wt_free(session, page->modify->merge_free);
+        page->modify->merge_free = NULL;
+        page->modify->merge_free_entries = 0;
+        page->modify->merge_free_allocated = 0;
+    }
+
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 
     return (ret);
