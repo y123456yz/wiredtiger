@@ -583,6 +583,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * transforming the page from its disk image to its in-memory version, for example).
      */
     r->cell_zero = true;
+   // printf("yang test .........__wti_rec_row_int....page:%p, should_try_merge:%d\r\n", page, should_try_merge);
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -595,7 +596,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (should_try_merge && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             merged = false;
             skip_count = 0;
-            
+            //printf("yang test .........__wti_rec_row_int..1.page:%p\r\n", page);
+            //if (WT_REF_GET_STATE(ref) != WT_REF_DISK)
+             //   printf("yang test .........__wti_rec_row_int..2..page:%p\r\n", page);
+
             ret = __wt_merge_adjacent_pages(session, r, page, ref, &merged, &skip_count);
             if (ret != 0) {
                 /* Merge failed, log and continue with normal reconcile */
@@ -605,6 +609,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
             
             if (merged) {
+                __wt_verbose(session, WT_VERB_RECONCILE,
+                    "success to merge adjacent pages: %s", wiredtiger_strerror(ret));
                 /* 
                  * Merge succeeded! Current ref written to parent's disk image.
                  * Subsequent skip_count refs marked as WT_REF_REC_MERGED.

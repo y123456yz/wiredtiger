@@ -697,10 +697,17 @@ __wti_block_off_free(
      * list.
      */
     if ((ret = __wti_block_off_remove_overlap(session, block, &block->live.alloc, offset, size)) ==
-      0)
+      0) {
+        __wt_verbose(session, WT_VERB_BLOCK,
+          "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> avail (from live.alloc)",
+          (intmax_t)offset, size);
         ret = __block_merge(session, block, &block->live.avail, offset, size);
-    else if (ret == WT_NOTFOUND)
+    } else if (ret == WT_NOTFOUND) {
+        __wt_verbose(session, WT_VERB_BLOCK,
+          "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> discard (from previous checkpoint)",
+          (intmax_t)offset, size);
         ret = __block_merge(session, block, &block->live.discard, offset, size);
+    }
     return (ret);
 }
 

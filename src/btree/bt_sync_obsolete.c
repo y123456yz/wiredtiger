@@ -12,6 +12,71 @@
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
+ * Heuristic threshold for identifying high-padding leaf blocks. Keep aligned with the adjacent page
+ * merge optimization's threshold.
+ */
+#define WT_CHECKPOINT_CLEANUP_MERGE_PADDING_THRESHOLD 90 /* 90% padding triggers merge */
+
+/*
+ * __checkpoint_cleanup_check_disk_padding --
+ *     Check if a WT_REF_DISK leaf page has a high padding ratio.
+ *
+ * Padding calculation: padding_ratio = (disk_size - mem_size) / disk_size * 100
+ * where disk_size is from the block address cookie and mem_size is from the on-disk page header.
+ */
+static bool
+__checkpoint_cleanup_check_disk_padding(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t threshold, uint32_t *mem_sizep)
+{
+    WT_ADDR_COPY addr_copy;
+    WT_BTREE *btree;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_PAGE_HEADER *dsk;
+    wt_off_t offset;
+    uint32_t checksum, disk_size, mem_size, objectid, padding_ratio;
+
+    btree = S2BT(session);
+
+    if (WT_REF_GET_STATE(ref) != WT_REF_DISK)
+        return (false);
+
+    if (!F_ISSET(ref, WT_REF_FLAG_LEAF))
+        return (false);
+
+    if (!__wt_ref_addr_copy(session, ref, &addr_copy))
+        return (false);
+
+    /* Keep consistent with merge restrictions: conservative around overflow items. */
+    if (addr_copy.type == WT_ADDR_LEAF)
+        return (false);
+
+    ret = __wt_block_addr_unpack(session, btree->bm->block, addr_copy.addr, addr_copy.size, &objectid,
+      &offset, &disk_size, &checksum);
+    if (ret != 0 || disk_size == 0)
+        return (false);
+
+    WT_ERR(__wt_scr_alloc(session, WT_PAGE_HEADER_BYTE_SIZE(btree), &tmp));
+    WT_ERR(__wt_bm_read(btree->bm, session, tmp, NULL, addr_copy.addr, addr_copy.size));
+
+    dsk = tmp->mem;
+    mem_size = dsk->mem_size;
+    if (mem_sizep != NULL)
+        *mem_sizep = mem_size;
+
+    if (mem_size == 0 || mem_size >= disk_size)
+        WT_ERR(EINVAL);
+    
+    //printf("yang test ...__checkpoint_cleanup_check_disk_padding...disk size:%d, mem size:%d\r\n", (int)disk_size, (int)mem_size);
+    padding_ratio = ((disk_size - mem_size) * 100) / disk_size;
+
+err:
+    __wt_scr_free(session, &tmp);
+
+    return (ret == 0 && padding_ratio >= threshold);
+}
+
+/*
  * __sync_obsolete_limit_reached --
  *     This function checks whether checkpoint cleanup can continue operating on the obsolete time
  *     window pages.
@@ -196,7 +261,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * The checkpoint cleanup's natural rate limiting (100 pages/btree) provides automatic
          * throttling for merge marking.
          */
-        WT_RET(__wt_merge_mark_parent_if_high_padding(session, ref));
+        //WT_RET(__wt_merge_mark_parent_if_high_padding(session, ref));
     }
 
     return (0);
@@ -311,7 +376,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
           "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home);
         return (0);
     }
-
+    
     /*
      * Check in memory, deleted and on-disk pages for obsolescence. An initial state check is done
      * without holding the ref locked - this is to avoid switching refs to locked if it's not
@@ -353,6 +418,80 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
     return (ret);
 }
 
+static int
+__mark_internal_page_padding_flag(WT_SESSION_IMPL *session, WT_REF *parent)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t slot;
+
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
+    for (slot = 0; slot + 1 < pindex->entries; ++slot) {
+        WT_REF *left = pindex->index[slot];
+        WT_REF *right = pindex->index[slot + 1];
+
+        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(left) != WT_REF_DISK)
+            return 0;
+    }
+
+    /*
+     * Optimization trigger: if this internal page has any adjacent pair of high-padding WT_REF_DISK
+     * leaf children, mark it so eviction reconciliation can attempt adjacent-leaf merges.
+     */
+    for (slot = 0; slot + 1 < pindex->entries; ++slot) {
+        WT_REF *left = pindex->index[slot];
+        WT_REF *right = pindex->index[slot + 1];
+
+        if (F_ISSET(left, WT_REF_FLAG_INTERNAL) || F_ISSET(right, WT_REF_FLAG_INTERNAL)) 
+            return (0);
+        
+        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(left) != WT_REF_DISK)
+            return 0;
+
+        /* Debug: print the internal keys for the adjacent refs (row-store only). */
+        if (parent->page->type == WT_PAGE_ROW_INT) {
+            const void *left_key, *right_key;
+            size_t left_key_size, right_key_size;
+
+            __wt_ref_key(parent->page, left, &left_key, &left_key_size);
+            __wt_ref_key(parent->page, right, &right_key, &right_key_size);
+
+            // printf(
+            //   "yang test: parent=%p slot=%" PRIu32 " left left_key=%.*s right right_key=%.*s, left size:%d, right size:%d\r\n",
+            //   (void *)parent->page, slot, (int)left_key_size, (const char *)left_key,
+            //   (int)right_key_size, (const char *)right_key, left_key_size, right_key_size); 
+        }
+
+        if (__checkpoint_cleanup_check_disk_padding(
+              session, left, WT_CHECKPOINT_CLEANUP_MERGE_PADDING_THRESHOLD, NULL) &&
+          __checkpoint_cleanup_check_disk_padding(
+            session, right, WT_CHECKPOINT_CLEANUP_MERGE_PADDING_THRESHOLD, NULL)) {
+            if (parent->page->type == WT_PAGE_ROW_INT) {
+                const void *left_key, *right_key;
+                size_t left_key_size, right_key_size;
+
+                __wt_ref_key(parent->page, left, &left_key, &left_key_size);
+                __wt_ref_key(parent->page, right, &right_key, &right_key_size);
+
+            __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+                  "marked parent page %p: adjacent high-padding leaf children (slot=%" PRIu32
+                  ", left=%p key=%.*s, right=%p key=%.*s)",
+                  (void *)parent->page, slot, (void *)left, (int)left_key_size, (const char *)left_key,
+                  (void *)right, (int)right_key_size, (const char *)right_key);
+            } 
+
+            //printf("yang test ........marked parent page:%p, left: %p, right: %p\r\n", (void *)left->home, (void *)left, (void *)right);
+            F_SET_ATOMIC_16(parent->page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
+            WT_RET(__wt_page_parent_modify_set(session, left, false));
+            break;
+        }
+    }
+
+    WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
+
+    return (0);
+}
+
 /*
  * __checkpoint_cleanup_obsolete_cleanup --
  *     Traverse an internal page and identify the leaf pages that are obsolete and mark them as
@@ -379,6 +518,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
         WT_RET(__sync_obsolete_cleanup_one(session, ref));
     }
 
+    __mark_internal_page_padding_flag(session, parent);
     WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
 
     return (0);
@@ -479,6 +619,9 @@ __checkpoint_cleanup_page_skip(
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
+    
+    if (addr.type == WT_ADDR_INT)
+        *skipp = false;
 
     if (*skipp) {
         __wt_verbose_debug2(
@@ -580,7 +723,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if (strcmp(uri, WT_HS_URI) == 0)
         return (true);
-
+    //printf("yang test 1111111111111 __checkpoint_cleanup_eligibility %s\r\n", uri);
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
      * dhandles that are already opened.
@@ -590,6 +733,8 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     if (ret == WT_NOTFOUND)
         return (false);
 
+    //printf("yang test 22222222222 __checkpoint_cleanup_eligibility\r\n");
+    return true;//yang add todo xxxxx 测试用
     /*
      * Logged table. The logged tables do not support timestamps, so we need to check for obsolete
      * pages in them.
@@ -777,8 +922,8 @@ __checkpoint_cleanup(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* We want to ensure the thread checks often enough if it is supposed to work. */
-        cleanup_interval =
-          WT_MIN(conn->cc_cleanup.interval, WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL);
+        cleanup_interval = 1;
+          //WT_MIN(conn->cc_cleanup.interval, WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL);
 
         /* Check periodically in case the signal was missed. */
         __wt_cond_wait_signal(session, conn->cc_cleanup.cond, cleanup_interval * WT_MILLION,
@@ -798,7 +943,8 @@ __checkpoint_cleanup(void *arg)
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
          * typically involves many IO operations so skipping some should have little impact.
          */
-        if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
+        //if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
+        if (!cv_signalled && (now - last < cleanup_interval))
             continue;
 
         WT_ERR(__checkpoint_cleanup_int(session));

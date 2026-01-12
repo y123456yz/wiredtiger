@@ -2851,7 +2851,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
      */
-    switch (mod->rec_result) {
+    switch (mod->rec_result) {//例如该page是第一次reconcile，这之前还没有磁盘page
     case 0: /*
              * The page has never been reconciled before, free the original
              * address blocks (if any).  The "if any" is for empty trees
@@ -2970,7 +2970,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
-
     /*
      * When the page is being reconciled as part of the checkpoint operation, the REF is not locked.
      * Concurrent access to the page can be enabled by safe-releasing the time aggregate
@@ -3192,14 +3191,6 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (page->disagg_info != NULL && r->multi_next == 1 && !F_ISSET(r, WT_REC_EMPTY_DELTA) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-
-    /* Discard any pending adjacent-merge free list on reconciliation error. */
-    if (page->modify != NULL && page->modify->merge_free != NULL) {
-        __wt_free(session, page->modify->merge_free);
-        page->modify->merge_free = NULL;
-        page->modify->merge_free_entries = 0;
-        page->modify->merge_free_allocated = 0;
-    }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 

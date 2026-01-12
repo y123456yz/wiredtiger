@@ -258,6 +258,12 @@ struct __wt_btree {
     wt_shared uint32_t eviction_obsolete_tw_pages;
 
     /*
+     * Track the number of pages reduced by adjacent page merging.
+     * This counts the total number of pages that were merged and removed.
+     */
+    wt_shared uint64_t merge_pages_reduced;
+
+    /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */

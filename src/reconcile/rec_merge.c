@@ -13,7 +13,7 @@
 /*
  * Configuration parameters for adjacent page merging
  */
-#define WT_MERGE_PADDING_THRESHOLD 80 /* 80% padding triggers merge */
+#define WT_MERGE_PADDING_THRESHOLD 90 /* 90% padding triggers merge */
 
 /*
  * __merge_check_page_padding --
@@ -50,11 +50,11 @@ __merge_check_page_padding(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t thres
     /* Only check leaf pages. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return false;
-
+    
     /* Must have a stable on-disk address cookie. */
     if (!__wt_ref_addr_copy(session, ref, &addr_copy))
         return false;
-
+    
     /*
      * addr_copy.type == WT_ADDR_LEAF indicates the leaf may contain overflow items.
      * Our merge implementation is conservative and does not support overflow items.
@@ -67,7 +67,7 @@ __merge_check_page_padding(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t thres
       &offset, &disk_size, &checksum);
     if (ret != 0 || disk_size == 0)
         return false;
-
+  //  printf("yang test .....222222....__wti_rec_row_int....ref:%p\r\n", ref);
     /*
      * Read the page header from disk to get mem_size.
      * Note: the block manager may read more than the header, but we keep the buffer small.
@@ -85,7 +85,7 @@ __merge_check_page_padding(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t thres
         ret = EINVAL;
         goto err;
     }
-    
+    //printf("yang test .....3333....__wti_rec_row_int....ref:%p, disk size:%d, mem_size:%d\r\n", ref, (int)disk_size, (int)mem_size);
     /* 
      * Calculate padding ratio: (disk_size - mem_size) / disk_size * 100
      * Example: disk=4096, mem=56 -> padding_ratio = (4096-56)/4096*100 = 98%
@@ -102,7 +102,7 @@ err:
 
 /*
  * __merge_check_globally_visible --
- *     Check if page's all data is globally visible (safe to merge).
+ *     我们只处理时间戳已经被清理的page
  */
 static bool
 __merge_check_globally_visible(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -131,11 +131,10 @@ __merge_check_globally_visible(WT_SESSION_IMPL *session, WT_REF *ref)
     newest_durable_ts = WT_MAX(addr_copy.ta.newest_start_durable_ts, 
                                 addr_copy.ta.newest_stop_durable_ts);
     
-    /*
-     * Use WiredTiger's standard visibility check function.
-     * This checks both transaction ID and timestamp visibility.
-     */
-    return __wt_txn_has_newest_and_visible_all(session, addr_copy.ta.newest_txn, newest_durable_ts);
+    if (addr_copy.ta.newest_txn == WT_TXN_NONE && newest_durable_ts == WT_TS_NONE)
+        return (true);
+
+    return false;
 }
 
 /*
@@ -357,7 +356,7 @@ __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF 
         if (!__merge_check_page_padding(session, ref, WT_MERGE_PADDING_THRESHOLD, &mem_size) ||
           !__merge_check_globally_visible(session, ref))
             break;
-
+        //printf("yang test .....22222....__wti_rec_row_int....ref:%p\r\n", ref);
         WT_RET(__merge_check_history_store(session, ref, &has_hs));
         if (has_hs) {
             __wt_verbose(session, WT_VERB_RECONCILE,
@@ -365,6 +364,19 @@ __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF 
             break;
         }
 
+        if (i > start_idx) {
+            /*
+             * For pages after the first one, subtract page header + block header size
+             * because when merging, only the first page keeps its header, and subsequent
+             * pages' data will be merged without their headers.
+             */
+            if (mem_size > WT_PAGE_HEADER_BYTE_SIZE(btree))
+                mem_size -= WT_PAGE_HEADER_BYTE_SIZE(btree);
+            else
+                mem_size = 0;
+        }
+
+        //printf("yang test .....22222....__wti_rec_row_int....i:%d， mem_size:%d\r\n", (int)i, (int)mem_size);
         /* Size gating: do not build a merged leaf larger than maxleafpage. */
         if ((wt_off_t)mem_size == 0 || total_mem_size + (wt_off_t)mem_size >= (wt_off_t)btree->maxleafpage)
             break;
@@ -419,7 +431,7 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
     pending_key_set = false;
     addr_size = compressed_size = 0;
 
-    WT_TIME_AGGREGATE_INIT(&merged_ta);
+    WT_TIME_AGGREGATE_INIT_MERGE(&merged_ta);
 
     WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &new_image));
     WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &leaf_image));
@@ -587,7 +599,116 @@ __merge_parent_add_free_cookie(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF
     mod->merge_free[mod->merge_free_entries].size = addr_copy.size;
     mod->merge_free_entries++;
 
+    /* Debug: Log merge_free creation */
+    {
+        wt_off_t offset;
+        uint32_t checksum, objectid, size;
+        if (__wt_block_addr_unpack(session, S2BT(session)->bm->block, 
+            addr_copy.addr, addr_copy.size, &objectid, &offset, &size, &checksum) == 0) {
+            __wt_verbose(session, WT_VERB_RECONCILE,
+              "merge_free CREATED: parent=%p, block offset=%" PRIdMAX " size=%" PRIu32 
+              ", total entries=%" PRIu32,
+              (void *)parent, (intmax_t)offset, size, mod->merge_free_entries);
+        }
+    }
+
     return (0);
+}
+
+/*
+ * __merge_internal_fits_without_split --
+ *     Strong constraint: only allow an adjacent-leaf merge if the remainder of the internal page
+ *     reconciliation will fit in the current image without crossing the split boundary.
+ */
+static bool
+__merge_internal_fits_without_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *parent,
+  WT_REF *current_ref, uint32_t merge_count, WT_ADDR *merged_addr)
+{
+    WT_ADDR_COPY addr_copy;
+    WT_CELL cell;
+    WT_PAGE_DELETED *page_del;
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    const void *key_data;
+    size_t key_size, needed;
+    uint32_t entries, i, start_idx;
+    u_int cell_type;
+
+    /* If we have already split during this reconciliation, we cannot guarantee WT_PM_REC_REPLACE. */
+    if (r->multi_next != 0)
+        return (false);
+
+    WT_INTL_INDEX_GET(session, parent, pindex);
+    entries = pindex->entries;
+
+    for (start_idx = 0; start_idx < entries; ++start_idx)
+        if (pindex->index[start_idx] == current_ref)
+            break;
+    if (start_idx >= entries)
+        return (false);
+
+    needed = 0;
+
+    for (i = start_idx; i < entries; ++i) {
+        ref = pindex->index[i];
+
+        /* Skip refs already handled by a previous merge. */
+        if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_MERGED)
+            continue;
+
+        /* Key length as it will be written. */
+        __wt_ref_key(parent, ref, &key_data, &key_size);
+        if (i == start_idx && r->cell_zero)
+            key_size = 1;
+        needed += __wt_cell_pack_int_key(&cell, key_size) + key_size;
+
+        if (i == start_idx) {
+            WT_ASSERT(session, merged_addr != NULL);
+
+            /* Merged entry always points to a leaf address. */
+            cell_type = WT_CELL_ADDR_LEAF;
+            needed += __wt_cell_build_addr(session, &cell, cell_type, WT_RECNO_OOB, NULL,
+                        &merged_addr->ta, merged_addr->block_cookie_size) +
+              merged_addr->block_cookie_size;
+
+            /* Skip the remaining refs covered by the merge range. */
+            if (merge_count > 1)
+                i += merge_count - 1;
+            continue;
+        }
+
+        /* Address length as it will be written. */
+        if (!__wt_ref_addr_copy(session, ref, &addr_copy))
+            return (false);
+
+        page_del = addr_copy.del_set ? &addr_copy.del : NULL;
+        if (addr_copy.del_set)
+            cell_type = WT_CELL_ADDR_DEL;
+        else {
+            switch (addr_copy.type) {
+            case WT_ADDR_INT:
+                cell_type = WT_CELL_ADDR_INT;
+                break;
+            case WT_ADDR_LEAF:
+                cell_type = WT_CELL_ADDR_LEAF;
+                break;
+            case WT_ADDR_LEAF_NO:
+            default:
+                cell_type = WT_CELL_ADDR_LEAF_NO;
+                break;
+            }
+        }
+
+        needed += __wt_cell_build_addr(
+                    session, &cell, cell_type, WT_RECNO_OOB, page_del, &addr_copy.ta, addr_copy.size) +
+          addr_copy.size;
+
+        /* Bail out early if we already exceed what's left in the image buffer. */
+        if (needed > r->space_avail)
+            return (false);
+    }
+
+    return (needed <= r->space_avail);
 }
 
 /*
@@ -612,11 +733,12 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     *merged_out = false;
     *skip_count_out = 0;
     new_addr = NULL;
+    //return 0;
 
     /* Only supported during eviction reconciliation. */
     if (!F_ISSET(r, WT_REC_EVICT))
         return (0);
-
+    //printf("yang test .....111111....__wti_rec_row_int....page:%p\r\n", parent);
     WT_ERR(__merge_should_merge_adjacent(
       session, parent, current_ref, &merge_refs, &merge_allocated, &merge_count));
     if (merge_count < 2)
@@ -635,7 +757,14 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
         goto err;
     }
     WT_ERR(ret);
-
+    //printf("yang test .....33333....__wti_rec_row_int....page:%p\r\n", parent);
+    /* Strong constraint: if we merge, the rest of this internal page must fit without splitting. */
+    new_addr->type = WT_ADDR_LEAF;
+    if (!__merge_internal_fits_without_split(session, r, parent, current_ref, merge_count, new_addr)) {
+        ret = 0;
+        goto err;
+    }
+    //printf("yang test .....4444....__wti_rec_row_int....page:%p\r\n", parent);
     /* Build value cell (new child address). */
     __wti_rec_cell_build_addr(session, r, new_addr, NULL, WT_RECNO_OOB, NULL);
 
@@ -667,6 +796,10 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
 
     *merged_out = true;
     *skip_count_out = merge_count - 1;
+    printf("yang test ..............skip_count_out:%d............\r\n", (int)merge_count - 1);
+
+    /* Accumulate the number of pages reduced by merging. */
+    __wt_atomic_add_uint64(&S2BT(session)->merge_pages_reduced, *skip_count_out);
 
 err:
     if (new_addr != NULL) {
