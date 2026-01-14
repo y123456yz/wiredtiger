@@ -509,6 +509,18 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         if (mod->merge_free_entries > 0 && mod->merge_free != NULL) {
             uint32_t i;
             for (i = 0; i < mod->merge_free_entries; ++i) {
+                /* Debug: Print the block being freed. */
+                {
+                    WT_BM *bm = S2BT(session)->bm;
+                    WT_BLOCK *block = (WT_BLOCK *)bm->block;
+                    uint32_t objectid, size, checksum;
+                    wt_off_t offset;
+                    if (__wt_block_addr_unpack(session, block, mod->merge_free[i].addr, 
+                        mod->merge_free[i].size, &objectid, &offset, &size, &checksum) == 0) {
+                        printf("DEBUG_MERGE_FREE: offset=%" PRIdMAX ", size=%" PRIu32 "\n", 
+                            (intmax_t)offset, size);
+                    }
+                }
                 int ret_free = __wt_btree_block_free(
                   session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size);
                 if (ret_free != 0)

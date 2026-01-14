@@ -698,15 +698,22 @@ __wti_block_off_free(
      */
     if ((ret = __wti_block_off_remove_overlap(session, block, &block->live.alloc, offset, size)) ==
       0) {
+        printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> avail\n", 
+            (intmax_t)offset, (uint32_t)size);
         __wt_verbose(session, WT_VERB_BLOCK,
           "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> avail (from live.alloc)",
-          (intmax_t)offset, size);
+          (intmax_t)offset, (uint32_t)size);
         ret = __block_merge(session, block, &block->live.avail, offset, size);
     } else if (ret == WT_NOTFOUND) {
+        printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> discard\n", 
+            (intmax_t)offset, (uint32_t)size);
         __wt_verbose(session, WT_VERB_BLOCK,
           "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> discard (from previous checkpoint)",
-          (intmax_t)offset, size);
+          (intmax_t)offset, (uint32_t)size);
         ret = __block_merge(session, block, &block->live.discard, offset, size);
+    } else {
+        printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> FAILED ret=%d\n", 
+            (intmax_t)offset, (uint32_t)size, ret);
     }
     return (ret);
 }

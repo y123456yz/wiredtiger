@@ -26,6 +26,10 @@
 /* Copy the values from one time window structure to another. */
 #define WT_TIME_WINDOW_COPY(dest, source) (*(dest) = *(source))
 
+/*
+作用：检查时间窗口是否为空（所有字段都是默认值）
+返回：true 表示空窗口（无时间信息）
+*/
 /* Return true if the time window is equivalent to the default time window. */
 #define WT_TIME_WINDOW_IS_EMPTY(tw)                                                   \
     ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&          \
@@ -72,6 +76,7 @@
  * Set the start values of a time window from those in an update structure. We can race with
  * prepared rollback. If we read an aborted transaction id in the first attempt, get the transaction
  * id from the saved transaction id.
+ 根据udp设置时间窗口的开始时间
  */
 #define WT_TIME_WINDOW_SET_START(tw, upd, write_prepare)    \
     do {                                                    \
@@ -93,6 +98,7 @@
  * Set the stop values of a time window from those in an update structure. We can race with prepared
  * rollback. If we read an aborted transaction id in the first attempt, get the transaction id from
  * the saved transaction id.
+ 从 update 结构设置时间窗口的 stop 部分
  */
 #define WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare)    \
     do {                                                   \
@@ -111,6 +117,7 @@
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
+//作用：只复制 start 部分
 #define WT_TIME_WINDOW_COPY_START(dest, source)                  \
     do {                                                         \
         (dest)->durable_start_ts = (source)->durable_start_ts;   \
@@ -121,6 +128,7 @@
     } while (0)
 
 /* Copy the stop values of a time window from another time window. */
+//作用：只复制 stop 部分
 #define WT_TIME_WINDOW_COPY_STOP(dest, source)                 \
     do {                                                       \
         (dest)->durable_stop_ts = (source)->durable_stop_ts;   \
@@ -135,7 +143,7 @@
  * timestamp values represent the maximum durable timestamp over set of timestamps. These aggregated
  * max values are used for rollback to stable operation to find out whether the page has any
  * timestamp updates more than stable timestamp.
- */
+*/
 #define WT_TIME_AGGREGATE_INIT(ta)                  \
     do {                                            \
         (ta)->newest_start_durable_ts = WT_TS_NONE; \
