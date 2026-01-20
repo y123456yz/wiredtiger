@@ -592,6 +592,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         /*
          * Try to merge adjacent high-padding pages if enabled.
          * Only attempt merging when the current child is a leaf ref.
+        假设internal page0下面有5个leaf page，leaf page1-page5, 并且page1-page5中page1、page2可以合并，
+        page3不可以合并，page4、page5可以合并。那么最终r的镜像中最终包含3个成员，1个是page1、page2合并后的
+        addr cell(key是page1中的最小key, value是合并后新page的磁盘地址信息)，page3保存原来的处理流程，
+        1个page4、page5合并后的addr cell(key是page4中的最小key, value是合并后新page的磁盘地址信息)
+
+        这3个addr cell依次填充到r image中，然后交由__wti_rec_split_finish处理这批image
          */
         if (should_try_merge && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             merged = false;

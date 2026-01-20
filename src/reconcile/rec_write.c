@@ -2968,6 +2968,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
+    /*
+     * If an adjacent-leaf merge was performed, we have collected a list of child leaf blocks
+     * that are no longer reachable. Now that the parent page reconciliation has successfully
+     * written the new image, it is safe to free these old blocks.
+     */
+    if (mod->merge_free_entries > 0 && mod->merge_free != NULL) {
+        for (i = 0; i < mod->merge_free_entries; ++i) {
+            (void)__wt_btree_block_free(
+              session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size);
+        }
+        __wt_free(session, mod->merge_free);
+        mod->merge_free = NULL;
+        mod->merge_free_entries = 0;
+        mod->merge_free_allocated = 0;
+    }
+
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
     /*

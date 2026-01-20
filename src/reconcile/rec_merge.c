@@ -403,6 +403,13 @@ __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF 
  * - This path is intended for internal-page eviction reconciliation: children must remain
  *   WT_REF_DISK and must not be instantiated into cache.
  * - For now, we conservatively refuse to merge pages containing overflow key/value cells.
+ 
+ 主要功能作用
+物理聚合（Physical Concatenation）： 它会依次读取多个子页面的磁盘镜像（Disk Image），提取其中的 Key/Value 数据，并将它们按顺序重新封装到一个新的、更大的磁盘镜像中。
+
+避免缓存污染（Cache Preservation）： 通常合并页面需要把数据读入内存变成 WT_PAGE 对象，这会消耗 Cache 空间。但这个函数直接操作磁盘字节流，在 Reconciliation（对账）过程中直接生成新块，不需要在内存中实例化子页面。这对于正在进行 Eviction（驱逐）的系统来说非常友好。
+
+空间重新分配（Space Reallocation）： 它会向 Block Manager 申请一个新的磁盘块来存放合并后的数据，并返回这个新块的地址（ WT_ADDR ）。
  */
 static int
 __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t count, WT_ADDR **new_addr_out)
@@ -765,23 +772,33 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
         goto err;
     }
     //printf("yang test .....4444....__wti_rec_row_int....page:%p\r\n", parent);
+    //将一个磁盘地址（WT_ADDR）封装成一个“地址单元”（Address Cell），以便将其写入父页面的磁盘镜像中。最终信息确实存入了 r->v
     /* Build value cell (new child address). */
     __wti_rec_cell_build_addr(session, r, new_addr, NULL, WT_RECNO_OOB, NULL);
 
     /* Build key cell (use first ref's key). */
+    // 为合并后的新页面准备在父页面中显示的“索引键”（Index Key），并处理 Internal Page 的特殊首项（Cell Zero）逻辑。
     __wt_ref_key(parent, merge_refs[0], &key_data, &key_size);
     if (r->cell_zero)
         key_size = 1;
 
+    // 之前的 __wti_rec_cell_build_addr 是在准备指针（Value），那么这几行就是在准备该指针对应的标签（Key）。
+    //如果相邻page合并了，则把合并后的新page对应的addr cell填充到rec image镜像中，其中cell的key是合并后page的最小key, value是该page的磁盘地址信息
+
+    //将当前处理的 Key 备份到 r->cur 缓冲区中。
     WT_ERR(__wt_buf_set(session, r->cur, key_data, key_size));
+    //将 Key 的原始数据（Raw Data）拷贝到对账结构体的键暂存区 r->k.buf 中。
     WT_ERR(__wt_buf_set(session, &r->k.buf, key_data, key_size));
     r->k.cell_len = __wt_cell_pack_int_key(&r->k.cell, r->k.buf.size);
     r->k.len = r->k.cell_len + r->k.buf.size;
 
     /* Refuse to create internal split as part of this optimization. */
+    //__wti_rec_need_split(r, size) 会根据当前父页面对账缓冲区已占用的大小，以及系统配置的 max_intl_page （最大内部页面限制），来判断：“如果塞进这个新项，父页面是否会超出大小限制，从而被迫分裂成多个磁盘块？”
+    //暂存在 r->k （键）和 r->v （值/地址）缓冲区中的内容，是在紧接着的 __wti_rec_image_copy 调用时正式写入父页面磁盘镜像缓冲区的。
     if (__wti_rec_need_split(r, r->k.len + r->v.len))
         goto err;
 
+    // 如果相邻page合并了，则把合并后的新page对应的addr cell填充到rec image镜像中，其中cell的key是合并后page的最小key, value是该page的磁盘地址信息
     __wti_rec_image_copy(session, r, &r->k);
     __wti_rec_image_copy(session, r, &r->v);
     r->cell_zero = false;
