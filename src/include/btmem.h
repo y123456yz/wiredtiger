@@ -494,7 +494,7 @@ struct __wt_page_modify {
      */
     struct __wt_merge_free_addr *merge_free;
     uint32_t merge_free_entries;
-    uint32_t merge_free_allocated;
+    size_t merge_free_allocated;
 
     /*
      * Stop aggregated timestamp information when all the keys on the page are removed. This time

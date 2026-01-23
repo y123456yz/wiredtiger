@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
+//#define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -34,7 +34,8 @@ __checkpoint_cleanup_check_disk_padding(
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     wt_off_t offset;
-    uint32_t checksum, disk_size, mem_size, objectid, padding_ratio;
+    uint32_t checksum, disk_size, mem_size, objectid, 
+        padding_ratio = 0;
 
     btree = S2BT(session);
 
@@ -422,7 +423,7 @@ static int
 __mark_internal_page_padding_flag(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
-    WT_REF *ref;
+    //WT_REF *ref;
     uint32_t slot;
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
@@ -430,7 +431,7 @@ __mark_internal_page_padding_flag(WT_SESSION_IMPL *session, WT_REF *parent)
         WT_REF *left = pindex->index[slot];
         WT_REF *right = pindex->index[slot + 1];
 
-        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(left) != WT_REF_DISK)
+        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(right) != WT_REF_DISK)
             return 0;
     }
 

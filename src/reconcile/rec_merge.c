@@ -309,7 +309,7 @@ __merge_check_history_store(WT_SESSION_IMPL *session, WT_REF *ref, bool *has_hs)
  */
 static int
 __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF *current_ref,
-  WT_REF ***merge_refsp, uint32_t *merge_allocatedp, uint32_t *merge_countp)
+  WT_REF ***merge_refsp, size_t *merge_allocatedp, uint32_t *merge_countp)
 {
     WT_BTREE *btree;
     WT_PAGE_INDEX *pindex;
@@ -729,7 +729,8 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     WT_DECL_RET;
     WT_REF **merge_refs;
     WT_ADDR *new_addr;
-    uint32_t merge_allocated, merge_count, i;
+    size_t merge_allocated;
+    uint32_t merge_count, i;
     const void *key_data;
     size_t key_size;
     bool still_valid;

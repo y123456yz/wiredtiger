@@ -2975,8 +2975,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     if (mod->merge_free_entries > 0 && mod->merge_free != NULL) {
         for (i = 0; i < mod->merge_free_entries; ++i) {
-            (void)__wt_btree_block_free(
-              session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size);
+            WT_IGNORE_RET(__wt_btree_block_free(
+              session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size));
         }
         __wt_free(session, mod->merge_free);
         mod->merge_free = NULL;
