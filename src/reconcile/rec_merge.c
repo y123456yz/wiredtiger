@@ -339,7 +339,7 @@ __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF 
 
     /*
      * Starting from current_ref, find consecutive high-padding leaf pages.
-     * Stop adding pages once the sum of their on-disk header mem_size reaches maxleafpage.
+     * Stop adding pages once the sum of their on-disk header mem_size reaches maxintlpage.
      */
     total_mem_size = 0;
     count = 0;
@@ -377,8 +377,8 @@ __merge_should_merge_adjacent(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF 
         }
 
         //printf("yang test .....22222....__wti_rec_row_int....i:%d， mem_size:%d\r\n", (int)i, (int)mem_size);
-        /* Size gating: do not build a merged leaf larger than maxleafpage. */
-        if ((wt_off_t)mem_size == 0 || total_mem_size + (wt_off_t)mem_size >= (wt_off_t)btree->maxleafpage)
+        /* Size gating: do not build a merged leaf larger than maxintlpage. */
+        if ((wt_off_t)mem_size == 0 || total_mem_size + (wt_off_t)mem_size >= (wt_off_t)btree->maxintlpage)
             break;
 
         WT_RET(__wt_realloc_def(session, merge_allocatedp, count + 1, merge_refsp));
@@ -440,8 +440,8 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
 
     WT_TIME_AGGREGATE_INIT_MERGE(&merged_ta);
 
-    WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &new_image));
-    WT_ERR(__wt_scr_alloc(session, btree->maxleafpage, &leaf_image));
+    WT_ERR(__wt_scr_alloc(session, btree->maxintlpage, &new_image));
+    WT_ERR(__wt_scr_alloc(session, btree->maxintlpage, &leaf_image));
     WT_ERR(__wt_scr_alloc(session, 0, &full_key));
     WT_ERR(__wt_scr_alloc(session, 0, &pending_key));
 
@@ -490,7 +490,7 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
             case WT_CELL_KEY_SHORT_PFX:
                 /* If we had a previous key with no value cell, write it as an empty value. */
                 if (pending_key_set) {// 这里可以优化下，例如每个page创建一个新image，当这个page遍历完成后，拷贝到new_image，这样可以避免ENOSPC，例如前面2个page合并没有超过max leaf page，第3个合并后超了，这种场景当前前面2个都会失效
-                    if (new_image->size + pending_key->size + 32 > btree->maxleafpage)
+                    if (new_image->size + pending_key->size + 32 > btree->maxintlpage)
                         WT_ERR(ENOSPC);
                     WT_ERR(__wt_cell_pack_leaf_kv(
                       session, true, pending_key->data, pending_key->size, NULL, 0, NULL, new_image, &s));
@@ -517,7 +517,7 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
                 if (!pending_key_set)
                     WT_ERR(WT_NOTFOUND);
 
-                if (new_image->size + pending_key->size + unpack.size + 64 > btree->maxleafpage)
+                if (new_image->size + pending_key->size + unpack.size + 64 > btree->maxintlpage)
                     WT_ERR(ENOSPC);
 
                 WT_ERR(__wt_cell_pack_leaf_kv(session, false, pending_key->data, pending_key->size,
@@ -534,7 +534,7 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
 
         /* Flush trailing key with empty value at the end of this source page. */
         if (pending_key_set) {
-            if (new_image->size + pending_key->size + 32 > btree->maxleafpage)
+            if (new_image->size + pending_key->size + 32 > btree->maxintlpage)
                 WT_ERR(ENOSPC);
             WT_ERR(__wt_cell_pack_leaf_kv(
               session, true, pending_key->data, pending_key->size, NULL, 0, NULL, new_image, &s));
@@ -565,6 +565,41 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
     WT_ERR(__wt_calloc_one(session, &new_addr));
     WT_ERR(__wt_memdup(session, addr_buf, addr_size, &new_addr->block_cookie));
     new_addr->block_cookie_size = (uint8_t)addr_size;
+    
+    /* 
+     * Fix the merged time aggregate after WT_TIME_AGGREGATE_MERGE operations.
+     * 
+     * IMPORTANT: WT_TIME_AGGREGATE_MERGE does NOT modify the init_merge flag, so
+     * merged_ta.init_merge will always be 1 after merging. We must clear it and
+     * validate the resulting time aggregate.
+     * 
+     * The key insight: oldest_start_ts == WT_TS_MAX indicates no valid start timestamp
+     * was merged (since WT_MIN(WT_TS_MAX, any_valid_ts) < WT_TS_MAX). In this case,
+     * we reset to a standard empty time aggregate to avoid validation failures.
+     * 
+     * Validation rule: oldest_start_ts <= newest_start_durable_ts
+     *   - If oldest_start_ts == WT_TS_MAX and newest_start_durable_ts == WT_TS_NONE (0),
+     *     this violates the rule since WT_TS_MAX > WT_TS_NONE.
+     */
+    printf("[MERGE_DEBUG] Before fix: oldest_start_ts=%lu, newest_start_durable_ts=%lu, init_merge=%d\n",
+      (unsigned long)merged_ta.oldest_start_ts, (unsigned long)merged_ta.newest_start_durable_ts, 
+      merged_ta.init_merge);
+    if (merged_ta.oldest_start_ts == WT_TS_MAX) {
+        /* 
+         * No valid oldest_start_ts was found in any source page.
+         * This happens when all source pages have empty time aggregates.
+         * Reset to a standard empty time aggregate.
+         */
+        printf("[MERGE_DEBUG] Resetting to empty time aggregate (oldest_start_ts was WT_TS_MAX)\n");
+        WT_TIME_AGGREGATE_INIT(&merged_ta);
+    } else {
+        /* Valid data was merged, just clear the init_merge flag */
+        merged_ta.init_merge = 0;
+    }
+    printf("[MERGE_DEBUG] After fix: oldest_start_ts=%lu, newest_start_durable_ts=%lu, init_merge=%d\n",
+      (unsigned long)merged_ta.oldest_start_ts, (unsigned long)merged_ta.newest_start_durable_ts, 
+      merged_ta.init_merge);
+    
     new_addr->ta = merged_ta;
 
     *new_addr_out = new_addr;
@@ -744,9 +779,10 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     //return 0;
 
     /* Only supported during eviction reconciliation. */
-    if (!F_ISSET(r, WT_REC_EVICT))
-        return (0);
-    //printf("yang test .....111111....__wti_rec_row_int....page:%p\r\n", parent);
+    //if (!F_ISSET(r, WT_REC_EVICT))
+    //    return (0);
+
+    printf("yang test .....111111....__wti_rec_row_int....page:%p\r\n", parent);
     WT_ERR(__merge_should_merge_adjacent(
       session, parent, current_ref, &merge_refs, &merge_allocated, &merge_count));
     if (merge_count < 2)
@@ -804,6 +840,16 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     __wti_rec_image_copy(session, r, &r->v);
     r->cell_zero = false;
 
+    /* 
+     * IMPORTANT: Merge the new address's time aggregate into the current reconciliation chunk.
+     * This is critical for checkpoint to have correct time aggregate information for the
+     * internal page. Without this, the checkpoint would use uninitialized/invalid time aggregate
+     * values, leading to validation failures like "oldest_start_ts > newest_start_durable_ts".
+     */
+    WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &new_addr->ta);
+    
+    r->cell_zero = false;
+
     /* Record old child blocks to be freed after eviction installs the new parent. */
     for (i = 0; i < merge_count; ++i)
         WT_ERR(__merge_parent_add_free_cookie(session, parent, merge_refs[i]));
@@ -828,4 +874,43 @@ err:
     __wt_free(session, merge_refs);
 
     return (ret);
+}
+
+/*
+ * __wti_merge_free_discard --
+ *     Free the blocks that were recorded during adjacent page merge.
+ *     This function should be called AFTER the new internal page has been
+ *     installed into the tree, ensuring no readers can still reference
+ *     the old child blocks.
+ */
+void
+__wti_merge_free_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+    uint32_t i;
+
+    mod = page->modify;
+    if (mod == NULL || mod->merge_free_entries == 0 || mod->merge_free == NULL)
+        return;
+
+    for (i = 0; i < mod->merge_free_entries; ++i) {
+        /* Debug: Print block info before freeing */
+        {
+            wt_off_t offset;
+            uint32_t checksum, objectid, size;
+            if (__wt_block_addr_unpack(session, S2BT(session)->bm->block,
+                mod->merge_free[i].addr, mod->merge_free[i].size, 
+                &objectid, &offset, &size, &checksum) == 0) {
+                printf("[MERGE_FREE] FREEING (post-install): block offset=%jd size=%u, entry %u/%u\n",
+                  (intmax_t)offset, size, i + 1, mod->merge_free_entries);
+            }
+        }
+        WT_IGNORE_RET(__wt_btree_block_free(
+          session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size));
+    }
+    
+    __wt_free(session, mod->merge_free);
+    mod->merge_free = NULL;
+    mod->merge_free_entries = 0;
+    mod->merge_free_allocated = 0;
 }

@@ -562,7 +562,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * This must not instantiate children into cache: only consider WT_REF_DISK children and operate
      * on their on-disk images/addresses.
      */
-    should_try_merge = F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+    should_try_merge = (F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_CHECKPOINT)) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
       F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) &&
       !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
       !WT_IS_DISAGG_META(btree->dhandle);

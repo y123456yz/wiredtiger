@@ -299,11 +299,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     else
         WT_ERR(__evict_page_dirty_update(session, ref, flags));
 
-    /*
-     * We have loaded the new disk image and updated the tree structure. We can no longer fail after
-     * this point.
-     */
-
     if (0) {
 err:
         ++page->evict_page_attempts;

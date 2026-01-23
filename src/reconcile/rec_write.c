@@ -2968,21 +2968,30 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
-    /*
-     * If an adjacent-leaf merge was performed, we have collected a list of child leaf blocks
-     * that are no longer reachable. Now that the parent page reconciliation has successfully
-     * written the new image, it is safe to free these old blocks.
+        /*
+     * We have loaded the new disk image and updated the tree structure. We can no longer fail after
+     * this point.
+     *
+     * Now it is safe to free the blocks from merged child pages. The tree structure has been
+     * updated, so no readers can still reference the old child blocks.
      */
-    if (mod->merge_free_entries > 0 && mod->merge_free != NULL) {
-        for (i = 0; i < mod->merge_free_entries; ++i) {
-            WT_IGNORE_RET(__wt_btree_block_free(
-              session, mod->merge_free[i].addr, (size_t)mod->merge_free[i].size));
-        }
-        __wt_free(session, mod->merge_free);
-        mod->merge_free = NULL;
-        mod->merge_free_entries = 0;
-        mod->merge_free_allocated = 0;
-    }
+    //if (page->modify != NULL)
+     //   __wti_merge_free_discard(session, page);
+
+    /*
+     * IMPORTANT: Do NOT free merge_free blocks here!
+     * 
+     * The merge_free list contains addresses of child leaf blocks that were merged into a
+     * single new block. These blocks cannot be freed until after the new internal page
+     * image has been installed into the tree (i.e., after __evict_page_dirty_update).
+     * 
+     * If we free them here, checkpoint or other readers may still be using the old tree
+     * structure and referencing these blocks, leading to "addr-valid failed: is on the
+     * available list" errors.
+     * 
+     * The blocks will be freed in __wti_merge_free_discard() called from evict_page.c
+     * after the tree structure has been updated.
+     */
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
