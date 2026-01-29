@@ -604,7 +604,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             skip_count = 0;
             //printf("yang test .........__wti_rec_row_int..1.page:%p\r\n", page);
             //if (WT_REF_GET_STATE(ref) != WT_REF_DISK)
-             //   printf("yang test .........__wti_rec_row_int..2..page:%p\r\n", page);
+            //    printf("yang test .........__wti_rec_row_int..2..page:%p\r\n", page);
 
             ret = __wt_merge_adjacent_pages(session, r, page, ref, &merged, &skip_count);
             if (ret != 0) {

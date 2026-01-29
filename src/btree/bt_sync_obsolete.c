@@ -871,7 +871,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
-
+    
     while ((ret = __checkpoint_cleanup_get_uri(session, uri)) == 0) {
         ret = __checkpoint_cleanup_walk_btree(session, uri);
         if (ret == ENOENT || ret == EBUSY) {

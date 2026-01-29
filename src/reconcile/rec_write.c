@@ -2968,15 +2968,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
-        /*
-     * We have loaded the new disk image and updated the tree structure. We can no longer fail after
-     * this point.
-     *
-     * Now it is safe to free the blocks from merged child pages. The tree structure has been
-     * updated, so no readers can still reference the old child blocks.
-     */
-    //if (page->modify != NULL)
-     //   __wti_merge_free_discard(session, page);
+    if (page->modify != NULL)
+        __wti_merge_free_discard(session, page);
 
     /*
      * IMPORTANT: Do NOT free merge_free blocks here!
