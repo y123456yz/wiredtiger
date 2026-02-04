@@ -423,50 +423,45 @@ static int
 __mark_internal_page_padding_flag(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
-    //WT_REF *ref;
     uint32_t slot;
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
-    for (slot = 0; slot + 1 < pindex->entries; ++slot) {
-        WT_REF *left = pindex->index[slot];
-        WT_REF *right = pindex->index[slot + 1];
-
-        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(right) != WT_REF_DISK)
-            return 0;
-    }
-
+    
     /*
      * Optimization trigger: if this internal page has any adjacent pair of high-padding WT_REF_DISK
      * leaf children, mark it so eviction reconciliation can attempt adjacent-leaf merges.
+     * 
+     * IMPORTANT: We only check adjacent pairs where BOTH refs are:
+     *   1. Leaf pages (not internal pages)
+     *   2. In WT_REF_DISK state (not in memory)
+     *   3. Have high padding ratio
+     * 
+     * We do NOT require ALL children to be in DISK state. The actual merge operation during 
+     * eviction reconciliation will re-verify that all children are DISK before proceeding.
+     * This marking is just a hint to enable the merge optimization path.
+     * 
+     * The safety of merging is guaranteed by the eviction reconciliation code in rec_merge.c:
+     * __merge_should_merge_adjacent() re-checks that consecutive refs are WT_REF_DISK before
+     * actually performing the merge.
      */
     for (slot = 0; slot + 1 < pindex->entries; ++slot) {
         WT_REF *left = pindex->index[slot];
         WT_REF *right = pindex->index[slot + 1];
 
-        if (F_ISSET(left, WT_REF_FLAG_INTERNAL) || F_ISSET(right, WT_REF_FLAG_INTERNAL)) 
-            return (0);
+        /* Skip if either ref is an internal page - we only merge leaf pages */
+        if (F_ISSET(left, WT_REF_FLAG_INTERNAL) || F_ISSET(right, WT_REF_FLAG_INTERNAL))
+            break;
         
-        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(left) != WT_REF_DISK)
-            return 0;
+        /* Skip if either ref is not on disk - cannot check padding without disk address */
+        if (WT_REF_GET_STATE(left) != WT_REF_DISK || WT_REF_GET_STATE(right) != WT_REF_DISK)
+            continue;
 
-        /* Debug: print the internal keys for the adjacent refs (row-store only). */
-        if (parent->page->type == WT_PAGE_ROW_INT) {
-            const void *left_key, *right_key;
-            size_t left_key_size, right_key_size;
-
-            __wt_ref_key(parent->page, left, &left_key, &left_key_size);
-            __wt_ref_key(parent->page, right, &right_key, &right_key_size);
-
-            // printf(
-            //   "yang test: parent=%p slot=%" PRIu32 " left left_key=%.*s right right_key=%.*s, left size:%d, right size:%d\r\n",
-            //   (void *)parent->page, slot, (int)left_key_size, (const char *)left_key,
-            //   (int)right_key_size, (const char *)right_key, left_key_size, right_key_size); 
-        }
-
+        /* Check if both adjacent pages have high padding */
         if (__checkpoint_cleanup_check_disk_padding(
               session, left, WT_CHECKPOINT_CLEANUP_MERGE_PADDING_THRESHOLD, NULL) &&
           __checkpoint_cleanup_check_disk_padding(
             session, right, WT_CHECKPOINT_CLEANUP_MERGE_PADDING_THRESHOLD, NULL)) {
+            
             if (parent->page->type == WT_PAGE_ROW_INT) {
                 const void *left_key, *right_key;
                 size_t left_key_size, right_key_size;
@@ -474,15 +469,16 @@ __mark_internal_page_padding_flag(WT_SESSION_IMPL *session, WT_REF *parent)
                 __wt_ref_key(parent->page, left, &left_key, &left_key_size);
                 __wt_ref_key(parent->page, right, &right_key, &right_key_size);
 
-            __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+                __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
                   "marked parent page %p: adjacent high-padding leaf children (slot=%" PRIu32
                   ", left=%p key=%.*s, right=%p key=%.*s)",
                   (void *)parent->page, slot, (void *)left, (int)left_key_size, (const char *)left_key,
                   (void *)right, (int)right_key_size, (const char *)right_key);
             } 
 
-            //printf("yang test ........marked parent page:%p, left: %p, right: %p\r\n", (void *)left->home, (void *)left, (void *)right);
             F_SET_ATOMIC_16(parent->page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
+            printf("[CKPT_CLEANUP_MARK] Marked parent page %p with WT_PAGE_HAS_HIGH_PADDING_CHILDREN, is_root=%d\n",
+                   (void*)parent->page, __wt_ref_is_root(parent));
             WT_RET(__wt_page_parent_modify_set(session, left, false));
             break;
         }
@@ -923,7 +919,7 @@ __checkpoint_cleanup(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* We want to ensure the thread checks often enough if it is supposed to work. */
-        cleanup_interval = 1;
+        cleanup_interval = 3;
           //WT_MIN(conn->cc_cleanup.interval, WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL);
 
         /* Check periodically in case the signal was missed. */

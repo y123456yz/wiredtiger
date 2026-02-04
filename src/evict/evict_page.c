@@ -492,15 +492,45 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             mod->mod_replace.block_cookie = NULL;
             mod->mod_replace.block_cookie_size = 0;
             __wt_tsan_suppress_store_wt_addr_ptr(&ref->addr, addr);
+            
+            /* Debug: Print when internal page address is updated */
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                // printf("[EVICT_REPLACE] Internal page %p evicted, new addr installed in ref %p, parent=%p, parent_is_root=%d\n",
+                //        (void*)ref->page, (void*)ref, (void*)ref->home, 
+                //        ref->home ? __wt_ref_is_root(ref->home->pg_intl_parent_ref) : -1);
+            }
         } else
             WT_ASSERT(
               session, WT_DELTA_ENABLED_FOR_PAGE(session, ref->page->type) && ref->addr != NULL);
 
         /*
+         * Free blocks that were recorded during adjacent page merge.
+         * 
+         * IMPORTANT: This must be done AFTER the new address is installed into ref->addr
+         * (above), so that the tree structure is consistent before we free the old blocks.
+         * At this point:
+         * - The new merged page address is in ref->addr
+         * - The old child blocks can be safely freed because no new readers can reach them
+         * - The page will be discarded from memory below
+         * - Next access will load from disk with the correct merged structure
+         */
+        __wti_merge_free_discard(session, ref->page);
+
+        /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
          */
+        /* Debug: Print disk_image status for internal pages */
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            // printf("[EVICT_DISK_IMAGE] Internal page %p, ref %p, mod_disk_image=%p\n",
+            //        (void*)ref->page, (void*)ref, (void*)mod->mod_disk_image);
+        }
         if (mod->mod_disk_image == NULL) {
+            /* Debug: Print when internal page is fully evicted to disk */
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                // printf("[EVICT_TO_DISK] Internal page %p fully evicted, ref %p set to WT_REF_DISK\n",
+                //        (void*)ref->page, (void*)ref);
+            }
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);

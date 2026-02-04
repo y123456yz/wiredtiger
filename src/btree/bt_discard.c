@@ -248,6 +248,21 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_ovfl_reuse_free(session, page);
     __wt_ovfl_discard_free(session, page);
 
+    /*
+     * Free the merge_free list if it exists.
+     * 
+     * Note: The blocks in merge_free should have been freed by __wti_merge_free_discard()
+     * in __evict_page_dirty_update() before reaching here. This is just a safety cleanup
+     * for the memory of the merge_free array itself, in case of error paths or if blocks
+     * were never freed (which would be a bug, but we still need to free the memory).
+     */
+    if (page->modify->merge_free != NULL) {
+        __wt_free(session, page->modify->merge_free);
+        page->modify->merge_free = NULL;
+        page->modify->merge_free_entries = 0;
+        page->modify->merge_free_allocated = 0;
+    }
+
     __wt_free(session, page->modify->ovfl_track);
     __wt_free(session, page->modify->inst_updates);
     __wt_free(session, page->modify->stop_ta);

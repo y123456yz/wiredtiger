@@ -34,6 +34,7 @@ extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 extern int __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
   WT_PAGE *parent, WT_REF *current_ref, bool *merged_out, uint32_t *skip_count_out)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_merge_has_adjacent_high_padding_children(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wti_merge_free_discard(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern int __wt_merge_mark_high_padding_pages(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

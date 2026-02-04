@@ -404,8 +404,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    if (!LF_ISSET(WT_REC_REWRITE_DELTA))
+    if (!LF_ISSET(WT_REC_REWRITE_DELTA)) {
+        // printf("[MERGE_PARENT] Marking parent of page %p dirty, parent=%p, is_root=%d, rec_result=%d\n",
+        //        (void*)ref->page, (void*)ref->home, __wt_ref_is_root(ref) ? 1 : 0, 
+        //        ref->page->modify ? ref->page->modify->rec_result : -1);
         WT_ERR(__wt_page_parent_modify_set(session, ref, true));
+    }
 
     /*
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
@@ -2968,9 +2972,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
-    if (page->modify != NULL)
-        __wti_merge_free_discard(session, page);
-
     /*
      * IMPORTANT: Do NOT free merge_free blocks here!
      * 
@@ -2982,8 +2983,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * structure and referencing these blocks, leading to "addr-valid failed: is on the
      * available list" errors.
      * 
-     * The blocks will be freed in __wti_merge_free_discard() called from evict_page.c
-     * after the tree structure has been updated.
+     * The blocks will be freed in __evict_page_dirty_update() in evict_page.c
+     * after the tree structure has been updated and before the page is discarded.
      */
 
     /* Reset the reconciliation state. */
@@ -2998,6 +2999,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
+
+    /* Debug: Check if this is an internal page with merge flag */
+    if (WT_PAGE_IS_INTERNAL(page) && F_ISSET(r, WT_REC_EVICT)) {
+        // printf("[WRAPUP_DEBUG] Internal page %p: multi_next=%u, is_evict=%d, flags=0x%x\n",
+        //        (void*)page, r->multi_next, F_ISSET(r, WT_REC_EVICT) ? 1 : 0, r->flags);
+    }
 
     switch (r->multi_next) {
     case 0: /* Page delete */

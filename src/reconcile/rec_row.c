@@ -554,18 +554,61 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     
     /*
      * Try merging adjacent high-padding leaf blocks only during internal-page eviction reconcile
-     * (not during closing eviction), and only when the parent page has been explicitly marked as
-     * having adjacent high-padding children.
+     * (not during closing eviction or checkpoint), and only when the parent page has been
+     * explicitly marked as having adjacent high-padding children.
+     *
+     * IMPORTANT: Only do merge during EVICTION, not during CHECKPOINT!
+     * 
+     * Reason: After merge, the disk image contains the new merged address, but the in-memory
+     * tree structure (REF array) still points to the old addresses. This inconsistency is
+     * resolved naturally by eviction because:
+     * 1. Eviction writes the new disk image
+     * 2. Eviction then clears the page from memory (__wt_ref_out)
+     * 3. REF state changes from WT_REF_MEM to WT_REF_DISK
+     * 4. Next access loads from disk, getting the correct merged structure
+     *
+     * If we do merge during checkpoint:
+     * 1. Checkpoint writes the new disk image
+     * 2. But page stays in memory with old REF structure
+     * 3. Old blocks are freed and enter avail list
+     * 4. Next checkpoint sees in-memory REFs pointing to freed blocks -> PANIC!
      *
      * Do not attempt merging for internal files like the history store or metadata.
      *
      * This must not instantiate children into cache: only consider WT_REF_DISK children and operate
      * on their on-disk images/addresses.
+     *
+     * NOTE: We use WT_PAGE_HAS_HIGH_PADDING_CHILDREN flag which is set by checkpoint cleanup
+     * when it detects adjacent high-padding leaf children on disk.
      */
-    should_try_merge = (F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_CHECKPOINT)) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
-      F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) &&
+    should_try_merge = F_ISSET(r, WT_REC_EVICT) &&           /* Only during eviction */
+      !F_ISSET(r, WT_REC_CHECKPOINT) &&                      /* NOT during checkpoint */
+      !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&              /* Not during close */
       !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
-      !WT_IS_DISAGG_META(btree->dhandle);
+      !WT_IS_DISAGG_META(btree->dhandle) &&
+      F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
+
+    /* Debug: Print which condition failed if should_try_merge is false */
+    if (!should_try_merge && F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_CHECKPOINT) &&
+        !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) && !WT_IS_HS(btree->dhandle) && 
+        !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
+        // printf("[MERGE_COND_DEBUG] page=%p: evict=%d, checkpoint=%d, closing=%d, has_padding=%d, is_hs=%d, is_meta=%d\n",
+        //        (void*)page,
+        //        F_ISSET(r, WT_REC_EVICT) ? 1 : 0,
+        //        F_ISSET(r, WT_REC_CHECKPOINT) ? 1 : 0,
+        //        F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) ? 1 : 0,
+        //        F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) ? 1 : 0,
+        //        WT_IS_HS(btree->dhandle) ? 1 : 0,
+        //        WT_IS_METADATA(btree->dhandle) ? 1 : 0);
+    }
+
+    if (should_try_merge) {
+        WT_PAGE_INDEX *dbg_pindex;
+        WT_INTL_INDEX_GET(session, page, dbg_pindex);
+        // printf("[EVICT_MERGE_DEBUG] Internal page %p eviction reconcile: entries=%u, has_high_padding_flag=%d\n",
+        //        (void*)page, dbg_pindex->entries, 
+        //        F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) ? 1 : 0);
+    }
 
     WT_RET(__wti_rec_split_init(session, r, 0, btree->maxintlpage_precomp));
     WT_RET(__rec_build_delta_int(session, r, build_delta));
@@ -583,7 +626,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * transforming the page from its disk image to its in-memory version, for example).
      */
     r->cell_zero = true;
-   // printf("yang test .........__wti_rec_row_int....page:%p, should_try_merge:%d\r\n", page, should_try_merge);
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -755,6 +797,20 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  */
                 if (child->modify->mod_replace.block_cookie != NULL)
                     addr = &child->modify->mod_replace;
+                // /* Debug: Print addr source for WT_PM_REC_REPLACE case */
+                // if (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                //     wt_off_t dbg_offset = 0;
+                //     uint32_t dbg_checksum, dbg_objectid, dbg_size = 0;
+                //     if (addr != NULL && __wt_block_addr_unpack(session, S2BT(session)->bm->block,
+                //         addr->block_cookie, addr->block_cookie_size,
+                //         &dbg_objectid, &dbg_offset, &dbg_size, &dbg_checksum) == 0) {
+                //         // printf("[CKPT_REPLACE_DEBUG] ref %p: mod_replace.cookie=%s, using addr from %s, offset=%jd size=%u\n",
+                //         //        (void*)ref,
+                //         //        child->modify->mod_replace.block_cookie != NULL ? "NOT_NULL" : "NULL",
+                //         //        child->modify->mod_replace.block_cookie != NULL ? "mod_replace" : "ref->addr",
+                //         //        (intmax_t)dbg_offset, dbg_size);
+                //     }
+                // }
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, child->modify->rec_result));
@@ -762,6 +818,19 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             break;
         case WTI_CHILD_ORIGINAL:
             /* Original child. */
+            // /* Debug: Print ref->addr for DISK children during checkpoint */
+            // if (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            //     wt_off_t dbg_offset;
+            //     uint32_t dbg_checksum, dbg_objectid, dbg_size;
+            //     if (addr != NULL && addr->block_cookie_size > 0 && 
+            //         __wt_block_addr_unpack(session, S2BT(session)->bm->block,
+            //         addr->block_cookie, addr->block_cookie_size,
+            //         &dbg_objectid, &dbg_offset, &dbg_size, &dbg_checksum) == 0) {
+            //         // printf("[CKPT_CHILD_DEBUG] Checkpoint: internal child ref %p (state=%s) uses addr offset=%jd size=%u\n",
+            //         //        (void*)ref, WT_REF_GET_STATE(ref) == WT_REF_DISK ? "DISK" : "OTHER",
+            //         //        (intmax_t)dbg_offset, dbg_size);
+            //     }
+            // }
             break;
         case WTI_CHILD_PROXY:
             /* Fast-delete child where we write a proxy cell. */
@@ -879,8 +948,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_INTL_FOREACH_END;
 
     /* Clear high-padding flag after processing */
-    if (should_try_merge)
+    if (should_try_merge) {
         F_CLR_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN);
+        printf("[MERGE_FINAL] Internal page %p reconciliation complete, calling split_finish, flags=0x%x\n",
+               (void*)page, r->flags);
+    }
 
     /* Write the remnant page. */
     return (__wti_rec_split_finish(session, r));

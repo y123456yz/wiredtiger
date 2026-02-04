@@ -575,12 +575,6 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
                 /* Ensure the reconstructed key is in local buffer space for subsequent prefix keys. */
                 WT_ERR(__wt_buf_set(session, full_key, full_key->data, full_key->size));
                 WT_ERR(__wt_buf_set(session, pending_key, full_key->data, full_key->size));
-                
-                /* Debug: Print the full_key content */
-                __wt_verbose_notice(session, WT_VERB_RECONCILE,
-                  "[MERGE_FULL_KEY] full_key: \"%.*s\" (len=%zu)",
-                  (int)WT_MIN(full_key->size, 256), (char *)full_key->data, full_key->size);
-                
                 pending_key_set = true;
                 break;
             case WT_CELL_KEY_OVFL:
@@ -666,15 +660,15 @@ __merge_create_merged_page(WT_SESSION_IMPL *session, WT_REF **refs, uint32_t cou
          * This happens when all source pages have empty time aggregates.
          * Reset to a standard empty time aggregate.
          */
-        //printf("[MERGE_DEBUG] Resetting to empty time aggregate (oldest_start_ts was WT_TS_MAX)\n");
+        printf("[MERGE_DEBUG] Resetting to empty time aggregate (oldest_start_ts was WT_TS_MAX)\n");
         WT_TIME_AGGREGATE_INIT(&merged_ta);
     } else {
         /* Valid data was merged, just clear the init_merge flag */
         merged_ta.init_merge = 0;
     }
-    // printf("[MERGE_DEBUG] After fix: oldest_start_ts=%lu, newest_start_durable_ts=%lu, init_merge=%d\n",
-    //   (unsigned long)merged_ta.oldest_start_ts, (unsigned long)merged_ta.newest_start_durable_ts, 
-    //   merged_ta.init_merge);
+    printf("[MERGE_DEBUG] After fix: oldest_start_ts=%lu, newest_start_durable_ts=%lu, init_merge=%d\n",
+      (unsigned long)merged_ta.oldest_start_ts, (unsigned long)merged_ta.newest_start_durable_ts, 
+      merged_ta.init_merge);
     
     new_addr->ta = merged_ta;
 
@@ -886,19 +880,13 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
         goto err;
     }
     //printf("yang test .....4444....__wti_rec_row_int....page:%p\r\n", parent);
-    //将一个磁盘地址（WT_ADDR）封装成一个"地址单元"（Address Cell），以便将其写入父页面的磁盘镜像中。最终信息确实存入了 r->v
+    //将一个磁盘地址（WT_ADDR）封装成一个“地址单元”（Address Cell），以便将其写入父页面的磁盘镜像中。最终信息确实存入了 r->v
     /* Build value cell (new child address). */
     __wti_rec_cell_build_addr(session, r, new_addr, NULL, WT_RECNO_OOB, NULL);
 
     /* Build key cell (use first ref's key). */
-    // 为合并后的新页面准备在父页面中显示的"索引键"（Index Key），并处理 Internal Page 的特殊首项（Cell Zero）逻辑。
+    // 为合并后的新页面准备在父页面中显示的“索引键”（Index Key），并处理 Internal Page 的特殊首项（Cell Zero）逻辑。
     __wt_ref_key(parent, merge_refs[0], &key_data, &key_size);
-    
-    /* Debug: Print the first ref's key content */
-    __wt_verbose_notice(session, WT_VERB_RECONCILE,
-      "[MERGE_FIRST_KEY] First ref key_data: \"%.*s\" (len=%zu)",
-      (int)WT_MIN(key_size, 256), (char *)key_data, key_size);
-    
     if (r->cell_zero)
         key_size = 1;
 
@@ -913,7 +901,7 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     r->k.len = r->k.cell_len + r->k.buf.size;
 
     /* Refuse to create internal split as part of this optimization. */
-    //__wti_rec_need_split(r, size) 会根据当前父页面对账缓冲区已占用的大小，以及系统配置的 max_intl_page （最大内部页面限制），来判断："如果塞进这个新项，父页面是否会超出大小限制，从而被迫分裂成多个磁盘块？"
+    //__wti_rec_need_split(r, size) 会根据当前父页面对账缓冲区已占用的大小，以及系统配置的 max_intl_page （最大内部页面限制），来判断：“如果塞进这个新项，父页面是否会超出大小限制，从而被迫分裂成多个磁盘块？”
     //暂存在 r->k （键）和 r->v （值/地址）缓冲区中的内容，是在紧接着的 __wti_rec_image_copy 调用时正式写入父页面磁盘镜像缓冲区的。
     if (__wti_rec_need_split(r, r->k.len + r->v.len))
         goto err;
@@ -921,7 +909,6 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
     // 如果相邻page合并了，则把合并后的新page对应的addr cell填充到rec image镜像中，其中cell的key是合并后page的最小key, value是该page的磁盘地址信息
     __wti_rec_image_copy(session, r, &r->k);
     __wti_rec_image_copy(session, r, &r->v);
-    
     r->cell_zero = false;
 
     /* 
@@ -944,9 +931,8 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
 
     *merged_out = true;
     *skip_count_out = merge_count - 1;
-    __wt_verbose_notice(session, WT_VERB_RECONCILE,
-      "[MERGE] skip_count_out:%d, internal_page:%p, r->flags:0x%x",
-      (int)merge_count - 1, (void*)parent, r->flags);
+    printf("yang test ..............skip_count_out:%d, internal_page:%p, r->flags:0x%x............\r\n", 
+           (int)merge_count - 1, (void*)parent, r->flags);
 
     /* Accumulate the number of pages reduced by merging. */
     __wt_atomic_add_uint64(&S2BT(session)->merge_pages_reduced, *skip_count_out);
@@ -987,8 +973,8 @@ __wti_merge_free_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
             if (__wt_block_addr_unpack(session, S2BT(session)->bm->block,
                 mod->merge_free[i].addr, mod->merge_free[i].size, 
                 &objectid, &offset, &size, &checksum) == 0) {
-                // printf("[MERGE_FREE] FREEING (post-install): block offset=%jd size=%u, entry %u/%u\n",
-                //   (intmax_t)offset, size, i + 1, mod->merge_free_entries);
+                printf("[MERGE_FREE] FREEING (post-install): block offset=%jd size=%u, entry %u/%u\n",
+                  (intmax_t)offset, size, i + 1, mod->merge_free_entries);
             }
         }
         WT_IGNORE_RET(__wt_btree_block_free(
