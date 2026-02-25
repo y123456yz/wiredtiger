@@ -248,6 +248,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * variables.
          */
         __wt_atomic_store_ptr_release(&btree->sync_session, session);
+        //等待所有的evict线程执行完成，evict和checkpoint是互斥的
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);

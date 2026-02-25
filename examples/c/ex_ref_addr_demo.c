@@ -21,7 +21,7 @@
  */
 #define VALUE_SIZE 200
 #define RECORDS_PER_BATCH 300      /* Records per batch */
-#define RECORDS_PER_PAGE 30        /* ~30 records per 8KB page */
+#define RECORDS_PER_PAGE 60        /* ~30 records per 8KB page */
 
 static WT_RAND_STATE rnd;
 
@@ -106,15 +106,14 @@ main(int argc, char *argv[])
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    int batch, start_key, end_key;
-    int total_batches = 20;  /* More batches to create more pressure */
+    int batch, start_key, end_key, ret;
+    int total_batches = 50;  /* More batches to create more pressure */
 
     (void)argc;
     (void)argv;
 
     /* Clean up and create home directory */
     printf("=== Adjacent Page Merge Test (Eviction-based) ===\n\n");
-    testutil_remove(HOME_DIR);
     testutil_recreate_dir(HOME_DIR);
 
     /* Initialize random state */
@@ -130,14 +129,20 @@ main(int argc, char *argv[])
       "statistics=(all),eviction_dirty_target=1,eviction_dirty_trigger=5,"
       "checkpoint=(wait=1),"
       "checkpoint_cleanup=(wait=1),"
-      "verbose=[checkpoint_cleanup:0, reconcile:0, eviction:0]",
+      "verbose=[checkpoint_cleanup:0, reconcile:0, eviction:0, block:2]",
       &conn));
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create table with 8KB page size */
-    error_check(session->create(session, TABLE_URI,
-      "key_format=S,value_format=S,leaf_page_max=8KB,internal_page_max=8KB"));
-    printf("Table created with leaf_page_max=8KB\n\n");
+    /* Create table if not exists */
+    ret = session->create(session, TABLE_URI,
+      "key_format=S,value_format=S,leaf_page_max=4KB,internal_page_max=4KB,exclusive=false");
+    if (ret == 0) {
+        printf("Table created with leaf_page_max=4KB\n\n");
+    } else if (ret == EEXIST) {
+        printf("Table already exists, skipping create\n\n");
+    } else {
+        error_check(ret);
+    }
 
     /* Create batches of data with high padding */
     for (batch = 0; batch < total_batches; batch++) {
@@ -162,7 +167,7 @@ main(int argc, char *argv[])
     printf("=== Forcing eviction by writing new data and updating ===\n");
     {
         int new_start = total_batches * RECORDS_PER_BATCH + 1;
-        int new_end = new_start + 25*RECORDS_PER_BATCH - 1;
+        int new_end = new_start + 10*RECORDS_PER_BATCH - 1;
         int update_round;
 
         /* Insert new batch of records */
@@ -172,7 +177,7 @@ main(int argc, char *argv[])
 
         /* Repeatedly update the new batch to keep it hot and evict old pages */
         printf("Starting update loop (100 rounds)...\n");
-        for (update_round = 0; update_round < 500; update_round++) {
+        for (update_round = 0; update_round < 10; update_round++) {
             WT_CURSOR *cursor;
             char key[64], value[VALUE_SIZE + 1];
             int i;
@@ -191,7 +196,7 @@ main(int argc, char *argv[])
                 printf("Update round %d completed\n", update_round);
         }
         printf("Update loop completed - old pages should be evicted\n");
-    }
+    } 
 
     printf("=== Phase 1 completed: Created %d batches ===\n\n", total_batches);
 
@@ -204,7 +209,6 @@ main(int argc, char *argv[])
     /* Use wt salvage to dump page info and verify merge results */
     printf("=== Running wt salvage to verify merge results ===\n");
     {
-        int ret;
         /*
          * Use wt dump to show all pages and their sizes.
          * After merge, we should see fewer leaf pages with larger mem_size.

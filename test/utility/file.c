@@ -570,13 +570,14 @@ testutil_mkdir_ext(const char *path, const WT_MKDIR_OPTS *opts)
 
 /*
  * testutil_recreate_dir --
- *     Delete the existing directory, then create a new one.
+ *     Create directory if it doesn't exist, do nothing if it exists.
  */
 void
 testutil_recreate_dir(const char *dir)
 {
-    testutil_remove(dir);
-    testutil_mkdir(dir);
+    struct stat sb;
+    if (stat(dir, &sb) != 0)
+        testutil_mkdir(dir);
 }
 
 /*

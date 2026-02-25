@@ -723,9 +723,7 @@ __merge_parent_add_free_cookie(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF
         uint32_t checksum, objectid, size;
         if (__wt_block_addr_unpack(session, S2BT(session)->bm->block, 
             addr_copy.addr, addr_copy.size, &objectid, &offset, &size, &checksum) == 0) {
-            __wt_verbose(session, WT_VERB_RECONCILE,
-              "merge_free CREATED: parent=%p, block offset=%" PRIdMAX " size=%" PRIu32 
-              ", total entries=%" PRIu32,
+            printf("[MERGE_FREE_ADD] parent=%p, block offset=%jd size=%u, entry %u\n",
               (void *)parent, (intmax_t)offset, size, mod->merge_free_entries);
         }
     }
@@ -973,22 +971,31 @@ void
 __wti_merge_free_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
+    WT_BTREE *btree;
     uint32_t i;
 
     mod = page->modify;
     if (mod == NULL || mod->merge_free_entries == 0 || mod->merge_free == NULL)
         return;
 
+    btree = S2BT(session);
+    
+    /* Debug: Check checkpoint state before freeing blocks */
+    printf("[MERGE_FREE_DEBUG] page=%p, entries=%u, btree_syncing=%d, checkpoint_running=%d\n",
+           (void*)page, mod->merge_free_entries,
+           WT_BTREE_SYNCING(btree) ? 1 : 0,
+           __wt_atomic_load_bool_v_relaxed(&S2C(session)->txn_global.checkpoint_running) ? 1 : 0);
+
     for (i = 0; i < mod->merge_free_entries; ++i) {
         /* Debug: Print block info before freeing */
         {
             wt_off_t offset;
             uint32_t checksum, objectid, size;
-            if (__wt_block_addr_unpack(session, S2BT(session)->bm->block,
+            if (__wt_block_addr_unpack(session, btree->bm->block,
                 mod->merge_free[i].addr, mod->merge_free[i].size, 
                 &objectid, &offset, &size, &checksum) == 0) {
-                // printf("[MERGE_FREE] FREEING (post-install): block offset=%jd size=%u, entry %u/%u\n",
-                //   (intmax_t)offset, size, i + 1, mod->merge_free_entries);
+                printf("[MERGE_FREE] FREEING block offset=%jd size=%u, entry %u/%u\n",
+                  (intmax_t)offset, size, i + 1, mod->merge_free_entries);
             }
         }
         WT_IGNORE_RET(__wt_btree_block_free(

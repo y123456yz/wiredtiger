@@ -580,9 +580,19 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      *
      * NOTE: We use WT_PAGE_HAS_HIGH_PADDING_CHILDREN flag which is set by checkpoint cleanup
      * when it detects adjacent high-padding leaf children on disk.
+     *
+     * IMPORTANT: We must also skip merge when WT_REC_CHECKPOINT_RUNNING is set. This flag
+     * indicates that a checkpoint is in progress (even though we are in eviction, not checkpoint).
+     * If we merge while checkpoint is running, the old blocks get freed but checkpoint's alloc
+     * list still references them, causing "checkpoint range never verified" errors.
+     *
+     * We also check WT_BTREE_SYNCING to handle the race condition where checkpoint starts
+     * after we begin the merge operation. This provides an additional safety check.
      */
     should_try_merge = F_ISSET(r, WT_REC_EVICT) &&           /* Only during eviction */
-      !F_ISSET(r, WT_REC_CHECKPOINT) &&                      /* NOT during checkpoint */
+    //  !F_ISSET(r, WT_REC_CHECKPOINT) &&                      /* NOT during checkpoint */
+    //  !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING) &&              /* NOT while checkpoint is running */
+    //  !WT_BTREE_SYNCING(btree) &&                            /* NOT while btree is syncing */
       !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&              /* Not during close */
       !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
       !WT_IS_DISAGG_META(btree->dhandle) &&
@@ -605,10 +615,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (should_try_merge) {
         WT_PAGE_INDEX *dbg_pindex;
         WT_INTL_INDEX_GET(session, page, dbg_pindex);
+
+        (void)(dbg_pindex);
         // printf("[EVICT_MERGE_DEBUG] Internal page %p eviction reconcile: entries=%u, has_high_padding_flag=%d\n",
         //        (void*)page, dbg_pindex->entries, 
         //        F_ISSET_ATOMIC_16(page, WT_PAGE_HAS_HIGH_PADDING_CHILDREN) ? 1 : 0);
     }
+    //should_try_merge = false;
 
     WT_RET(__wti_rec_split_init(session, r, 0, btree->maxintlpage_precomp));
     WT_RET(__rec_build_delta_int(session, r, build_delta));

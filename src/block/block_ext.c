@@ -617,6 +617,7 @@ append:
     }
 
     /* Add the newly allocated extent to the list of allocations. */
+    printf("[BLOCK_ALLOC] offset=%jd size=%jd\n", (intmax_t)*offp, (intmax_t)size);
     WT_RET(__block_merge(session, block, &block->live.alloc, *offp, (wt_off_t)size));
     return (0);
 }
@@ -696,21 +697,22 @@ __wti_block_off_free(
      * modification). If this extent is referenced in a previous checkpoint, merge into the discard
      * list.
      */
+    /*
+    * 如果 block 是当前 checkpoint 期间分配的，可以立即重用；
+    * 如果 block 来自之前的 checkpoint，放入 discard list 等待。
+    */
+    // 尝试从 live.alloc 中移除这个 block
     if ((ret = __wti_block_off_remove_overlap(session, block, &block->live.alloc, offset, size)) ==
       0) {
-        //printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> avail\n", (intmax_t)offset, (uint32_t)size);
-        __wt_verbose(session, WT_VERB_BLOCK,
-          "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> avail (from live.alloc)",
-          (intmax_t)offset, (uint32_t)size);
+        //printf("[BLOCK_FREE] offset=%jd size=%u -> avail (in live.alloc)\n", (intmax_t)offset, (uint32_t)size);
+        // 成功从 live.alloc 移除 → 说明是当前 checkpoint 分配的
+        // 可以立即放入 avail list 重用
         ret = __block_merge(session, block, &block->live.avail, offset, size);
     } else if (ret == WT_NOTFOUND) {
-        //printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> discard\n",   (intmax_t)offset, (uint32_t)size);
-        __wt_verbose(session, WT_VERB_BLOCK,
-          "block_free: offset=%" PRIdMAX " size=%" PRIu32 " -> discard (from previous checkpoint)",
-          (intmax_t)offset, (uint32_t)size);
+        //printf("[BLOCK_FREE] offset=%jd size=%u -> discard (NOT in live.alloc)\n", (intmax_t)offset, (uint32_t)size);
         ret = __block_merge(session, block, &block->live.discard, offset, size);
     } else {
-        //printf("DEBUG_BLOCK_FREE_INTERNAL: offset=%" PRIdMAX ", size=%" PRIu32 " -> FAILED ret=%d\n",  (intmax_t)offset, (uint32_t)size, ret);
+        //printf("[BLOCK_FREE] offset=%jd size=%u -> FAILED ret=%d\n", (intmax_t)offset, (uint32_t)size, ret);
     }
     return (ret);
 }
