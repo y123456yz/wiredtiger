@@ -951,6 +951,13 @@ __wt_merge_adjacent_pages(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
 
 err:
     if (new_addr != NULL) {
+        /*
+         * If merge didn't succeed (block was written but not installed into the parent image),
+         * free the already-written disk block to avoid block leak.
+         */
+        if (!*merged_out && new_addr->block_cookie != NULL)
+            WT_IGNORE_RET(__wt_btree_block_free(
+              session, new_addr->block_cookie, new_addr->block_cookie_size));
         __wt_free(session, new_addr->block_cookie);
         __wt_free(session, new_addr);
     }

@@ -617,7 +617,7 @@ append:
     }
 
     /* Add the newly allocated extent to the list of allocations. */
-    printf("[BLOCK_ALLOC] offset=%jd size=%jd\n", (intmax_t)*offp, (intmax_t)size);
+    //printf("[BLOCK_ALLOC] offset=%jd size=%jd\n", (intmax_t)*offp, (intmax_t)size);
     WT_RET(__block_merge(session, block, &block->live.alloc, *offp, (wt_off_t)size));
     return (0);
 }
