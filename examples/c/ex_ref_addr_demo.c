@@ -107,7 +107,7 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_SESSION *session;
     int batch, start_key, end_key, ret;
-    int total_batches = 50;  /* More batches to create more pressure */
+    int total_batches = 2000;  /* More batches to create more pressure */
 
     (void)argc;
     (void)argv;
@@ -129,7 +129,7 @@ main(int argc, char *argv[])
       "statistics=(all),eviction_dirty_target=1,eviction_dirty_trigger=5,"
       "checkpoint=(wait=1),"
       "checkpoint_cleanup=(wait=1),"
-      "verbose=[checkpoint_cleanup:0, reconcile:0, eviction:0, block:2]",
+      "verbose=[checkpoint_cleanup:0, reconcile:0, eviction:0, block:0]",
       &conn));
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -197,6 +197,21 @@ main(int argc, char *argv[])
         }
         printf("Update loop completed - old pages should be evicted\n");
     } 
+
+    /* Print "file bytes available for reuse" statistic */
+    {
+        WT_CURSOR *stat_cursor;
+        const char *desc, *pvalue;
+        int64_t value;
+
+        error_check(session->open_cursor(
+          session, "statistics:" TABLE_URI, NULL, NULL, &stat_cursor));
+        stat_cursor->set_key(stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
+        error_check(stat_cursor->search(stat_cursor));
+        error_check(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &value));
+        printf("=== %s: %lld bytes (%.2f MB) ===\n", desc, (long long)value, (double)value / (1024.0 * 1024.0));
+        error_check(stat_cursor->close(stat_cursor));
+    }
 
     printf("=== Phase 1 completed: Created %d batches ===\n\n", total_batches);
 
